@@ -210,11 +210,4 @@ defined(CONFIG_MACH_SUN50I)
 #define SUNXI_SS_BOND_ID_A31		4
 #define SUNXI_SS_BOND_ID_A31S		5
 
-#ifndef __ASSEMBLY__
-void sunxi_board_init(void);
-void sunxi_reset(void);
-int sunxi_get_ss_bonding_id(void);
-int sunxi_get_sid(unsigned int *sid);
-#endif /* __ASSEMBLY__ */
-
 #endif /* _SUNXI_CPU_SUN4I_H */

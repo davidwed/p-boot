@@ -208,6 +208,7 @@ struct sunxi_ccm_reg {
 #define CCM_PLL1_CTRL_N(n)		((((n) - 1) & 0x1f) << 8)
 #define CCM_PLL1_CTRL_P(n)		(((n) & 0x3) << 16)
 #define CCM_PLL1_CTRL_EN		(0x1 << 31)
+#define CCM_PLL1_CTRL_LOCK		(0x1 << 28)
 
 #define CCM_PLL3_CTRL_M_SHIFT		0
 #define CCM_PLL3_CTRL_M_MASK		(0xf << CCM_PLL3_CTRL_M_SHIFT)
@@ -348,6 +349,7 @@ struct sunxi_ccm_reg {
 #define CCM_MMC_CTRL_SCLK_DLY(x)	((x) << 20)
 #define CCM_MMC_CTRL_OSCM24		(0x0 << 24)
 #define CCM_MMC_CTRL_PLL6		(0x1 << 24)
+#define CCM_MMC_CTRL_PLL6X2		(0x1 << 24) // A64 has PLL_PERIPH0(2X)
 #define CCM_MMC_CTRL_ENABLE		(0x1 << 31)
 
 #define CCM_SATA_CTRL_ENABLE		(0x1 << 31)
@@ -522,7 +524,7 @@ void clock_set_pll1(unsigned int hz);
 void clock_set_pll3(unsigned int hz);
 void clock_set_pll3_factors(int m, int n);
 void clock_set_pll5(unsigned int clk, bool sigma_delta_enable);
-void clock_set_pll10(unsigned int hz);
+void clock_set_pll_de(unsigned int hz);
 void clock_set_pll11(unsigned int clk, bool sigma_delta_enable);
 void clock_set_mipi_pll(unsigned int hz);
 unsigned int clock_get_pll3(void);

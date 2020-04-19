@@ -7,7 +7,6 @@
 #ifndef _ASM_ARMV8_MMU_H_
 #define _ASM_ARMV8_MMU_H_
 
-#include <hang.h>
 #include <linux/const.h>
 
 /*
@@ -99,9 +98,9 @@
 #define TCR_TG0_16K		(2 << 14)
 #define TCR_EPD1_DISABLE	(1 << 23)
 
-#define TCR_EL1_RSVD		(1 << 31)
-#define TCR_EL2_RSVD		(1 << 31 | 1 << 23)
-#define TCR_EL3_RSVD		(1 << 31 | 1 << 23)
+#define TCR_EL1_RSVD		(1ull << 31)
+#define TCR_EL2_RSVD		(1ull << 31 | 1ull << 23)
+#define TCR_EL3_RSVD		(1ull << 31 | 1ull << 23)
 
 #ifndef __ASSEMBLY__
 static inline void set_ttbr_tcr_mair(int el, u64 table, u64 tcr, u64 attr)
@@ -122,6 +121,7 @@ static inline void set_ttbr_tcr_mair(int el, u64 table, u64 tcr, u64 attr)
 	} else {
 		hang();
 	}
+	asm volatile("dsb ish");
 	asm volatile("isb");
 }
 

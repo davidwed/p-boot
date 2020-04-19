@@ -1,7 +1,7 @@
 #ifndef __ASM_ARM_STRING_H
 #define __ASM_ARM_STRING_H
 
-#include <config.h>
+//#include <config.h>
 
 /*
  * We don't do inline string functions, since the

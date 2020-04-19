@@ -18,6 +18,7 @@ struct fdt_errtabent {
 #define FDT_ERRTABENT(val) \
 	[(val)] = { .str = #val, }
 
+#ifdef SERIAL_CONSOLE
 static struct fdt_errtabent fdt_errtable[] = {
 	FDT_ERRTABENT(FDT_ERR_NOTFOUND),
 	FDT_ERRTABENT(FDT_ERR_EXISTS),
@@ -41,9 +42,11 @@ static struct fdt_errtabent fdt_errtable[] = {
 	FDT_ERRTABENT(FDT_ERR_BADFLAGS),
 };
 #define FDT_ERRTABSIZE	(sizeof(fdt_errtable) / sizeof(fdt_errtable[0]))
+#endif
 
 const char *fdt_strerror(int errval)
 {
+#ifdef SERIAL_CONSOLE
 	if (errval > 0)
 		return "<valid offset/length>";
 	else if (errval == 0)
@@ -56,4 +59,7 @@ const char *fdt_strerror(int errval)
 	}
 
 	return "<unknown error>";
+#else
+	return "";
+#endif
 }

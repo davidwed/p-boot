@@ -5,15 +5,14 @@
  */
 
 #include <common.h>
-#include <command.h>
+//#include <command.h>
 #include <time.h>
 #include <asm/system.h>
-
-DECLARE_GLOBAL_DATA_PTR;
 
 /*
  * Generic timer implementation of get_tbclk()
  */
+__attribute__((section(".textlow")))
 unsigned long get_tbclk(void)
 {
 	unsigned long cntfrq;
@@ -32,6 +31,7 @@ unsigned long get_tbclk(void)
  * was the same in both reads.
  * Assumes that the CPU runs in much higher frequency than the timer.
  */
+__attribute__((section(".textlow")))
 unsigned long timer_read_counter(void)
 {
 	unsigned long cntpct;
@@ -60,6 +60,7 @@ unsigned long timer_read_counter(void)
  * single read, so does not have any significant overhead.
  * The algorithm was conceived by Samuel Holland.
  */
+__attribute__((section(".textlow")))
 unsigned long timer_read_counter(void)
 {
 	unsigned long cntpct;
@@ -75,6 +76,7 @@ unsigned long timer_read_counter(void)
 /*
  * timer_read_counter() using the Arm Generic Timer (aka arch timer).
  */
+__attribute__((section(".textlow")))
 unsigned long timer_read_counter(void)
 {
 	unsigned long cntpct;
@@ -86,11 +88,10 @@ unsigned long timer_read_counter(void)
 }
 #endif
 
+__attribute__((section(".textlow")))
 uint64_t get_ticks(void)
 {
 	unsigned long ticks = timer_read_counter();
-
-	gd->arch.tbl = ticks;
 
 	return ticks;
 }
@@ -106,6 +107,7 @@ unsigned long usec2ticks(unsigned long usec)
 	return ticks;
 }
 
+__attribute__((section(".textlow")))
 ulong timer_get_boot_us(void)
 {
 	u64 val = get_ticks() * 1000000;

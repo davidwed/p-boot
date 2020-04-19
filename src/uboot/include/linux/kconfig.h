@@ -1,7 +1,7 @@
 #ifndef __LINUX_KCONFIG_H
 #define __LINUX_KCONFIG_H
 
-#include <generated/autoconf.h>
+//#include <generated/autoconf.h>
 
 /*
  * Helper macros to use CONFIG_ options in C/CPP expressions. Note that

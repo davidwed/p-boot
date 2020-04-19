@@ -4,12 +4,12 @@
  * David Feng <fenghua@phytium.com.cn>
  */
 
-#include <asm-offsets.h>
-#include <config.h>
+//#include <asm-offsets.h>
+//#include <config.h>
 #include <linux/linkage.h>
 #include <asm/macro.h>
 
-.pushsection .text.armv8_switch_to_el2, "ax"
+.pushsection .textlow.armv8_switch_to_el2, "ax"
 ENTRY(armv8_switch_to_el2)
 	switch_el x6, 1f, 0f, 0f
 0:

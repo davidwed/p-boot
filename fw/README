@@ -1,0 +1,35 @@
+PinePhone firmware
+------------------
+
+PinePhone needs ATF and SCP firmware. For ATF to correctly interact with p-boot,
+ATF needs to be patched, in order not to run U-Boot specific code.
+
+This directory contains scripts that can be used to build the ATF and SCP
+firmwares and a combined firmware package for p-boot, that will end up being
+loaded into A64 SRAM A2. ATF and SCP share the same SRAM.
+
+
+Build instructions
+------------------
+
+1) Get source code for ATF and SCP:
+
+  git clone https://github.com/ARM-software/arm-trusted-firmware.git atf
+  git clone https://github.com/crust-firmware/crust.git crust
+
+2) Patch ATF to add p-boot support:
+
+  ( cd atf ; git am ../atf.patch )
+
+3) Get cross-compilers:
+
+  You'll need to have aarch64-linux-musl and or1k-linux-musl toolchains
+  in your PATH.
+
+4) Build the firmware binary:
+
+  ./build-all.sh
+
+
+If everything goes fine, you should get fw.bin in the current directory.
+

@@ -10,6 +10,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <endian.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -27,19 +30,19 @@ int gen_check_sum(struct boot_file_head *head_p)
 	uint32_t i;
 	uint32_t sum;
 
-	length = le32_to_cpu(head_p->length);
+	length = le32toh(head_p->length);
 	if ((length & 0x3) != 0)	/* must 4-byte-aligned */
 		return -1;
 	buf = (uint32_t *)head_p;
-	head_p->check_sum = cpu_to_le32(STAMP_VALUE);	/* fill stamp */
+	head_p->check_sum = htole32(STAMP_VALUE);	/* fill stamp */
 	loop = length >> 2;
 
 	/* calculate the sum */
 	for (i = 0, sum = 0; i < loop; i++)
-		sum += le32_to_cpu(buf[i]);
+		sum += le32toh(buf[i]);
 
 	/* write back check sum */
-	head_p->check_sum = cpu_to_le32(sum);
+	head_p->check_sum = htole32(sum);
 
 	return 0;
 }
@@ -122,7 +125,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	fd_out = open(argv[2], O_WRONLY | O_CREAT, 0666);
+	fd_out = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (fd_out < 0) {
 		perror("Open output file");
 		return EXIT_FAILURE;
@@ -144,8 +147,8 @@ int main(int argc, char *argv[])
 	memcpy(img.header.magic, BOOT0_MAGIC, 8);	/* no '0' termination */
 	img.header.length =
 		ALIGN(file_size + sizeof(struct boot_file_head), BLOCK_SIZE);
-	img.header.b_instruction = cpu_to_le32(img.header.b_instruction);
-	img.header.length = cpu_to_le32(img.header.length);
+	img.header.b_instruction = htole32(img.header.b_instruction);
+	img.header.length = htole32(img.header.length);
 
 	memcpy(img.header.spl_signature, SPL_SIGNATURE, 3); /* "sunxi" marker */
 	img.header.spl_signature[3] = SPL_HEADER_VERSION;
@@ -154,7 +157,7 @@ int main(int argc, char *argv[])
 		if (strlen(default_dt) + 1 <= sizeof(img.header.string_pool)) {
 			strcpy((char *)img.header.string_pool, default_dt);
 			img.header.dt_name_offset =
-				cpu_to_le32(offsetof(struct boot_file_head,
+				htole32(offsetof(struct boot_file_head,
 						     string_pool));
 		} else {
 			printf("WARNING: The SPL header is too small\n");
@@ -162,10 +165,13 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	gen_check_sum(&img.header);
+	if (gen_check_sum(&img.header) < 0) {
+		printf("ERROR: Checksum failed\n");
+		return EXIT_FAILURE;
+	}
 
-	count = write(fd_out, &img, le32_to_cpu(img.header.length));
-	if (count != le32_to_cpu(img.header.length)) {
+	count = write(fd_out, &img, le32toh(img.header.length));
+	if (count != le32toh(img.header.length)) {
 		perror("Writing output");
 		return EXIT_FAILURE;
 	}

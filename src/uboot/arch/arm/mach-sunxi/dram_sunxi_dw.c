@@ -97,7 +97,7 @@ inline void mbus_configure_port(u8 port,
 			   | (bwl0 << 16) );
 	const u32 cfg1 = ((u32)bwl2 << 16) | (bwl1 & 0xffff);
 
-	debug("MBUS port %d cfg0 %08x cfg1 %08x\n", port, cfg0, cfg1);
+	//debug("MBUS port %d cfg0 %08x cfg1 %08x\n", port, cfg0, cfg1);
 	writel(cfg0, &mctl_com->mcr[port][0]);
 	writel(cfg1, &mctl_com->mcr[port][1]);
 }
@@ -354,7 +354,7 @@ static void mctl_set_cr(uint16_t socid, struct dram_para *para)
 
 	if (socid == SOCID_R40) {
 		if (para->dual_rank)
-			panic("Dual rank memory not supported\n");
+			panic(30, "Dual rank memory not supported\n");
 
 		/* Mux pin to A15 address line for single rank memory. */
 		setbits_le32(&mctl_com->cr_r1, MCTL_CR_R1_MUX_A15);
@@ -761,6 +761,10 @@ unsigned long sunxi_dram_init(void)
 
 	mctl_auto_detect_dram_size(socid, &para);
 	mctl_set_cr(socid, &para);
+
+//	debug("rb=%d\n", para.row_bits);
+//	debug("bb=%d\n", para.bank_bits);
+//	debug("dr=%d\n", para.dual_rank);
 
 	return (1UL << (para.row_bits + para.bank_bits)) * para.page_size *
 	       (para.dual_rank ? 2 : 1);

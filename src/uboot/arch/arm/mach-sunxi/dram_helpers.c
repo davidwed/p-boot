@@ -20,7 +20,7 @@ void mctl_await_completion(u32 *reg, u32 mask, u32 val)
 
 	while ((readl(reg) & mask) != val) {
 		if (timer_get_us() > tmo)
-			panic("Timeout initialising DRAM\n");
+			panic(31, "Timeout initialising DRAM\n");
 	}
 }
 
@@ -31,6 +31,7 @@ bool mctl_mem_matches(u32 offset)
 {
 	/* Try to write different values to RAM at two addresses */
 	writel(0, CONFIG_SYS_SDRAM_BASE);
+	dsb();
 	writel(0xaa55aa55, (ulong)CONFIG_SYS_SDRAM_BASE + offset);
 	dsb();
 	/* Check if the same value is actually observed when reading back */

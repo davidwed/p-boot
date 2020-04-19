@@ -1,0 +1,41 @@
+From 2b115aaf908b9a955bbaca2169cd13e69a2d853e Mon Sep 17 00:00:00 2001
+From: Ondrej Jirman <megous@megous.com>
+Date: Thu, 30 Apr 2020 11:37:26 +0200
+Subject: [PATCH] plat: allwinner: Wait for SCP core to perform the
+ shutdown/reboot
+
+When SCP reboot/poweroff command succeeds, we need to wait a bit before
+retrying the shutdown from the ARM core/ATF. Otherwise RSB/PMIC
+communication from ATF and SCP will race.
+
+Signed-off-by: Ondrej Jirman <megous@megous.com>
+---
+ plat/allwinner/common/sunxi_pm.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/plat/allwinner/common/sunxi_pm.c b/plat/allwinner/common/sunxi_pm.c
+index 09963bf4b..e76267b1f 100644
+--- a/plat/allwinner/common/sunxi_pm.c
++++ b/plat/allwinner/common/sunxi_pm.c
+@@ -138,6 +138,8 @@ static void __dead2 sunxi_system_off(void)
+ 
+ 		if (ret != SCP_OK)
+ 			ERROR("PSCI: SCPI %s failed: %d\n", "shutdown", ret);
++		else
++			udelay(1000);
+ 	}
+ 
+ 	/* Turn off all secondary CPUs */
+@@ -161,6 +163,9 @@ static void __dead2 sunxi_system_reset(void)
+ 
+ 		if (ret != SCP_OK)
+ 			ERROR("PSCI: SCPI %s failed: %d\n", "reboot", ret);
++		else
++			udelay(1000);
++
+ 	}
+ 
+ 	/* Reset the whole system when the watchdog times out */
+-- 
+2.26.2
+

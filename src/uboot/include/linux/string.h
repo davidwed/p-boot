@@ -91,15 +91,10 @@ extern __kernel_size_t strnlen(const char *,__kernel_size_t);
 size_t strcspn(const char *s, const char *reject);
 #endif
 
-#ifdef CONFIG_SANDBOX
-# define strdup		sandbox_strdup
-# define strndup		sandbox_strndup
-#endif
-
 #ifndef __HAVE_ARCH_STRDUP
 extern char * strdup(const char *);
-extern char * strndup(const char *, size_t);
 #endif
+extern char * strndup(const char *, size_t);
 #ifndef __HAVE_ARCH_STRSWAB
 extern char * strswab(const char *);
 #endif

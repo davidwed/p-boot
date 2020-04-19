@@ -1,0 +1,157 @@
+From d074490802d807230610bc33b2b6992dbc11b9df Mon Sep 17 00:00:00 2001
+From: Ondrej Jirman <megous@megous.com>
+Date: Sun, 26 Apr 2020 21:29:52 +0200
+Subject: [PATCH] Add support for p-boot
+
+Signed-off-by: Ondrej Jirman <megous@megous.com>
+---
+ bl31/aarch64/bl31_entrypoint.S           |  4 +--
+ bl31/bl31_main.c                         |  4 +--
+ drivers/allwinner/axp/common.c           |  5 ++--
+ plat/allwinner/common/sunxi_bl31_setup.c | 38 ++++++++++++++++++++++--
+ plat/allwinner/common/sunxi_pm.c         |  4 +--
+ 5 files changed, 45 insertions(+), 10 deletions(-)
+
+diff --git a/bl31/aarch64/bl31_entrypoint.S b/bl31/aarch64/bl31_entrypoint.S
+index 2d672dd12..c07ba1de3 100644
+--- a/bl31/aarch64/bl31_entrypoint.S
++++ b/bl31/aarch64/bl31_entrypoint.S
+@@ -73,10 +73,10 @@ func bl31_entrypoint
+ 	 * arguments passed to the platform layer to reflect that.
+ 	 * ---------------------------------------------------------------------
+ 	 */
+-	mov	x20, 0
++/*	mov	x20, 0
+ 	mov	x21, 0
+ 	mov	x22, 0
+-	mov	x23, 0
++	mov	x23, 0*/
+ #endif /* RESET_TO_BL31 */
+ 
+ 	/* --------------------------------------------------------------------
+diff --git a/bl31/bl31_main.c b/bl31/bl31_main.c
+index 92a2027dd..e381c5b40 100644
+--- a/bl31/bl31_main.c
++++ b/bl31/bl31_main.c
+@@ -95,8 +95,8 @@ void bl31_setup(u_register_t arg0, u_register_t arg1, u_register_t arg2,
+  ******************************************************************************/
+ void bl31_main(void)
+ {
+-	NOTICE("BL31: %s\n", version_string);
+-	NOTICE("BL31: %s\n", build_message);
++	INFO("BL31: %s\n", version_string);
++	INFO("BL31: %s\n", build_message);
+ 
+ 	/* Perform platform setup in BL31 */
+ 	bl31_platform_setup();
+diff --git a/drivers/allwinner/axp/common.c b/drivers/allwinner/axp/common.c
+index 13437fec8..cfc0ab87f 100644
+--- a/drivers/allwinner/axp/common.c
++++ b/drivers/allwinner/axp/common.c
+@@ -98,8 +98,9 @@ static int setup_regulator(const void *fdt, int node,
+ 
+ static bool should_enable_regulator(const void *fdt, int node)
+ {
+-	if (fdt_getprop(fdt, node, "phandle", NULL) != NULL)
+-		return true;
++//XXX: no need to enable referenced regulators
++//	if (fdt_getprop(fdt, node, "phandle", NULL) != NULL)
++//		return true;
+ 	if (fdt_getprop(fdt, node, "regulator-always-on", NULL) != NULL)
+ 		return true;
+ 	return false;
+diff --git a/plat/allwinner/common/sunxi_bl31_setup.c b/plat/allwinner/common/sunxi_bl31_setup.c
+index e836a345b..d674c32f8 100644
+--- a/plat/allwinner/common/sunxi_bl31_setup.c
++++ b/plat/allwinner/common/sunxi_bl31_setup.c
+@@ -27,6 +27,7 @@
+ 
+ static entry_point_info_t bl32_image_ep_info;
+ static entry_point_info_t bl33_image_ep_info;
++static uintptr_t fdt_blob_addr;
+ 
+ static console_t console;
+ 
+@@ -54,6 +55,18 @@ static void *sunxi_find_dtb(void)
+ 
+ 	u_boot_base = (void *)(SUNXI_DRAM_VIRT_BASE + SUNXI_DRAM_SEC_SIZE);
+ 
++	if (fdt_blob_addr) {
++		if (fdt_blob_addr != PLAT_SUNXI_NS_IMAGE_OFFSET) {
++			INFO("BL31: BL2 used bad address to pass FDT\n");
++			return NULL;
++		}
++		if (fdt_check_header(u_boot_base)) {
++			INFO("BL31: BL2 sent invalid FDT\n");
++			return NULL;
++		}
++		return u_boot_base;
++	}
++
+ 	for (i = 0; i < 2048 / sizeof(uint64_t); i++) {
+ 		uint32_t *dtb_base;
+ 
+@@ -83,6 +96,27 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 	console_16550_register(SUNXI_UART0_BASE, SUNXI_UART0_CLK_IN_HZ,
+ 			       SUNXI_UART0_BAUDRATE, &console);
+ 
++	// p-boot passes special value in arg2 for ATF to detect it
++	if (arg2 == 0xb001) {
++		entry_point_info_t *from_bl2 = (entry_point_info_t *) arg0;
++
++		/* p-boot passes entrypoint info directly in arg0 */
++		bl33_image_ep_info = *from_bl2;
++		/* FDT address in arg1 */
++		fdt_blob_addr = arg1;
++
++		INFO("BL31: BL33 pc=%p spsr=%x sec=%x FDT=%p arg2=%lx\n", (void*)bl33_image_ep_info.pc, bl33_image_ep_info.spsr, bl33_image_ep_info.h.attr, (void*)fdt_blob_addr, arg2);
++
++		if (bl33_image_ep_info.pc == 0U) {
++			ERROR("BL31: BL33 entrypoint not obtained from BL2\n");
++			panic();
++		}
++
++		/* Turn off all secondary CPUs */
++		sunxi_disable_secondary_cpus(read_mpidr());
++		return;
++	}
++
+ #ifdef BL32_BASE
+ 	/* Populate entry point information for BL32 */
+ 	SET_PARAM_HEAD(&bl32_image_ep_info, PARAM_EP, VERSION_1, 0);
+@@ -130,7 +164,7 @@ void bl31_platform_setup(void)
+ 		soc_name = "unknown";
+ 		break;
+ 	}
+-	NOTICE("BL31: Detected Allwinner %s SoC (%04x)\n", soc_name, soc_id);
++	INFO("BL31: Detected Allwinner %s SoC (%04x)\n", soc_name, soc_id);
+ 
+ 	generic_delay_timer_init();
+ 
+@@ -140,7 +174,7 @@ void bl31_platform_setup(void)
+ 		int length;
+ 
+ 		model = fdt_getprop(fdt, 0, "model", &length);
+-		NOTICE("BL31: Found U-Boot DTB at %p, model: %s\n", fdt,
++		INFO("BL31: Found DTB at %p, model: %s\n", fdt,
+ 		     model ?: "unknown");
+ 	} else {
+ 		NOTICE("BL31: No DTB found.\n");
+diff --git a/plat/allwinner/common/sunxi_pm.c b/plat/allwinner/common/sunxi_pm.c
+index e0fa5b3ec..09963bf4b 100644
+--- a/plat/allwinner/common/sunxi_pm.c
++++ b/plat/allwinner/common/sunxi_pm.c
+@@ -290,8 +290,8 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
+ 			scpi_available = true;
+ 	}
+ 
+-	NOTICE("PSCI: System suspend is %s\n",
+-	       scpi_available ? "available via SCPI" : "unavailable");
++	INFO("PSCI: System suspend is %s\n",
++	     scpi_available ? "available via SCPI" : "unavailable");
+ 	if (scpi_available) {
+ 		/* Suspend is only available via SCPI. */
+ 		sunxi_psci_ops.pwr_domain_suspend = sunxi_pwr_domain_off;
+-- 
+2.26.1
+

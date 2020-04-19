@@ -64,6 +64,7 @@ struct sunxi_mmc {
 					 SUNXI_MMC_GCTRL_FIFO_RESET|\
 					 SUNXI_MMC_GCTRL_DMA_RESET)
 #define SUNXI_MMC_GCTRL_DMA_ENABLE	(0x1 << 5)
+#define SUNXI_MMC_GCTRL_DDR_MODE	(0x1 << 10)
 #define SUNXI_MMC_GCTRL_ACCESS_BY_AHB   (0x1 << 31)
 
 #define SUNXI_MMC_CMD_RESP_EXPIRE	(0x1 << 6)
@@ -112,6 +113,10 @@ struct sunxi_mmc {
 	 SUNXI_MMC_RINT_COMMAND_DONE |		\
 	 SUNXI_MMC_RINT_VOLTAGE_CHANGE_DONE)
 
+#define SUNXI_MMC_FTRGLEVEL_BURST_SIZE(v)	(((v) & 0x7) << 28)
+#define SUNXI_MMC_FTRGLEVEL_RX_TL(v)		(((v) & 0xfff) << 16)
+#define SUNXI_MMC_FTRGLEVEL_TX_TL(v)		(((v) & 0xffff) << 0)
+
 #define SUNXI_MMC_STATUS_RXWL_FLAG		(0x1 << 0)
 #define SUNXI_MMC_STATUS_TXWL_FLAG		(0x1 << 1)
 #define SUNXI_MMC_STATUS_FIFO_EMPTY		(0x1 << 2)
@@ -128,6 +133,9 @@ struct sunxi_mmc {
 
 #define SUNXI_MMC_IDIE_TXIRQ		(0x1 << 0)
 #define SUNXI_MMC_IDIE_RXIRQ		(0x1 << 1)
+
+#define SUNXI_MMC_IDST_TXIRQ		(0x1 << 0)
+#define SUNXI_MMC_IDST_RXIRQ		(0x1 << 1)
 
 #define SUNXI_MMC_COMMON_CLK_GATE		(1 << 16)
 #define SUNXI_MMC_COMMON_RESET			(1 << 18)

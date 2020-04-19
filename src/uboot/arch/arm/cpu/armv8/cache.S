@@ -6,8 +6,7 @@
  * This file is based on sample code from ARMv8 ARM.
  */
 
-#include <asm-offsets.h>
-#include <config.h>
+//#include <asm-offsets.h>
 #include <asm/macro.h>
 #include <asm/system.h>
 #include <linux/linkage.h>

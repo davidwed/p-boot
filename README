@@ -1,0 +1,210 @@
+p-boot - pico sized bootloader for PinePhone
+--------------------------------------------
+
+This is a no nonsense bootloader for extremely fast and flexible booting
+of PinePhone. p-boot is partly based on some borrowed U-Boot code.
+
+Some benefits over U-Boot:
+
+- Speed (50-100ms boot times + load times for images)
+  - Uses MMC DMA, eMMC DDR, and CPU data cache
+  - Only minimal necessary boot steps are performed in the most straightforward manner
+- Single DT blob used by p-boot, ATF and Linux (no U-Boot specific DT blob needed)
+- Has access to PMIC over RSB (p-boot can access and configure the PMIC)
+  - Easy to select alternate boot configuration in case of low battery charge level
+  - Will power down the device in case of boot failure, instead of silently
+    draining the battery
+- Boot status indication via LED
+  - Bootloader failure indicated by a binary blinking pattern (serial port not
+    needed for quick debugging)
+- Multiple boot configurations
+- Ability to load bootloader from SD card, but read boot data from eMMC (which
+  allows 85MiB/s image load speeds and avoids 1s LED flash activation and 1s boot
+  delay waiting for BROM to load bootlader from eMMC)
+- Boot configuration selection via volume keys pressed during boot
+  (up to 3 different boot configurations)
+  - Allow for default boot config override via RTC data register (you can reboot
+    from one OS to another without user intervention)
+  - Support for one time reboot to other OS, or "persistent" change to other
+    boot configuration
+- Configure a stable WiFi MAC address in FDT based on SoC ID
+- A lot of free space for extensions (p-boot size limit is 32KiB, current
+  p-boot size is 21KiB)
+- Easy to understand and customize
+
+Enjoy!
+
+    Ondřej Jirman (aka "megi")
+
+
+Future possibilities
+--------------------
+
+See TODO for some possible/planned features.
+
+
+Building
+--------
+
+1) Get aarch64-linux-musl cross-compiler and set path to it in config.ini
+   (you can use config.ini.sample as a starting point).
+
+2) Then run:
+
+  php configure.php
+  ninja
+
+3) As a result you'll get a bunch of p-boot*.bin variants in .build/ dir
+   (in the order of decresing serial output verbosity):
+
+  p-boot-debug.bin  (will produce very verbose output, that will slow down the boot)
+  p-boot.bin  (will produce some basic output and critical messages)
+  p-boot-silent.bin  (will not even initialize the serial console)
+
+  The build also produces LTO compiled variants with a '-lto' suffix.
+
+
+Building (without PHP)
+----------------------
+
+1) Get aarch64-linux-musl cross-compiler and set path to it in
+   build/ninja.build by modifying aarch64_prefix.
+
+2) Go to build and run:
+
+  ninja
+
+3) Same as above.
+
+
+Installing p-boot to the "boot sector"
+--------------------------------------
+
+You must install p-boot by copying the contents of p-boot.bin to the SD card
+and/or eMMC starting from 8KiB offset from the start of the block device:
+
+  dd if=p-boot.bin of=/dev/mmcblk2 bs=1024 seek=8
+  dd if=p-boot.bin of=/dev/mmcblk0 bs=1024 seek=8
+
+
+ATF / SCP
+---------
+
+You'll need a patched ATF that works with p-boot and a SCP firmware build.
+
+You can build these using instructions in the fw/README or use a pre-built
+binary from dist/fw.bin (contains combined ATF and SCP binaries).
+
+
+Boot partition
+--------------
+
+p-boot doesn't understand partitions or filesystems, but it still needs to be
+able to somehow get ATF/SCP firmware, DTB, Linux image, and initramfs loaded
+into DRAM from somewhere.
+
+To achieve this, p-boot reads a boot configuration table from a fixed location
+on the eMMC or SD card and uses the information stored in the table to decide
+what to load next and how to boot the system. The table can contain multiple
+independent boot configurations.
+
+That means that you'll need some unformatted space near the beginning of your
+boot block device that will store the configuration table and other data.
+You can partition your boot device in such a way so that there's a partition
+starting at 1MiB and extending as far as you'll need that will not contain
+any filesystem, but which will be used by `p-boot-conf` tool to store
+p-boot related data. You can find this tool pre-built in the dist/ folder.
+
+This tool reads all files ending with '*.conf' from a configuration directory
+and writes data to the boot partition based on the content of these files.
+
+Each configuration file has the following format:
+
+  key1=value
+  key2=value
+  ...
+
+For example:
+
+  no=1
+  dtb=board.dtb
+  atf=fw.bin
+  linux=Image
+  initramfs=initramfs.img
+  bootargs=console=ttyS0,115200 console=tty1 root=/dev/mmcblk0p2 rootfstype=f2fs rw rootwait panic=3
+
+Meanings of configuration options:
+
+  - no: Configuration index (0-32)
+  - dtb: path to the pinephone's DTB file
+  - atf: path to the ATF binary or to the combined ATF+SCP binary (see dist/fw.bin)
+  - linux: path to the Linux 'Image' file
+  - initramfs: path to initramfs archive
+  - bootargs: Linux kernel boot arguments to be passed to the kernel
+
+All options are required except for initramfs. All paths are relative to the
+configuration directory.
+
+After preparing the configuration files, and collecting the required binary files
+in the configuration directory, run:
+
+  p-boot-conf $confdir $blkdevice
+
+Once done, you can reboot the PinePhone to check that p-boot works.
+
+
+Runtime behavior
+----------------
+
+During powerup or reboot, p-boot will check the status of volume keys, and select
+an appropriate boot configuration:
+
+  VOLUME_UP - no=1
+  VOLUME_DOWN - no=0
+  nothing pressed - no=default
+
+Default value is stored in the boot filesystem's superblock. (at offset 12,
+4-byte BE value). The value is unchanged by p-boot-conf.
+
+
+Boot process of p-boot is as follows: (also see src/main.c)
+
+- sample the time of the start of the boot
+- turn on a green LED
+- init various A64 clocks
+- enable lradc (to get a sample from volume keys ADC, later on)
+- (optional) init debug UART
+- init DRAM
+- setup p-boot heap space for malloc() at 256MiB from end of DRAM
+- increase CPU clock speed to 816MHz
+- setup buses?
+- enable instruction cache
+- enable MMU/setup CPU data cache
+- init RSB connection to PMIC
+- (optional) print PMIC status
+- configure PMIC
+  - shorten POK reaction time
+  - disable battery temperature sensor
+  - increase VBUS current limit to 2A and enable charger detection
+  - enable LCD power early so that controller initializes before
+    kernel runs, and kernel LCD probe can avoid delays
+- initialize eMMC or SD controller, and:
+  - read 2kB * 33 from 1MiB offset (boot config table)
+  - read default boot config selection index from the table
+  - if VOLUME_UP is pressed, force bootsel index = 1
+  - if VOLUME_DOWN is pressed, force bootsel index = 0
+  - otherwise use the default stored in the table
+  - go through the table and load images from the table to:
+    - Linux image to 0x40080000
+    - initramfs to 0x4fe00000
+    - DTB (FDT blob) to 0x4a000000
+    - ATF+SCP to 0x44000
+- check validity of FDT blob, and in FDT:
+  - set /chosen/bootargs to kernel command line
+  - add DRAM address/size info
+  - add initramfs info
+- turn off green and turn on red LED
+- jump to ATF
+  - ATF jumps to Linux image while switching to EL2
+  - or after return from ATF, jump to Linux image while switching to EL2
+    (ATF v2.3+ overwrites SRAM A1, causing SPL corruption)

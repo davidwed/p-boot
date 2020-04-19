@@ -7,8 +7,6 @@
 #ifndef BLK_H
 #define BLK_H
 
-#include <efi.h>
-
 #ifdef CONFIG_SYS_64BIT_LBA
 typedef uint64_t lbaint_t;
 #define LBAFlength "ll"
@@ -83,8 +81,10 @@ struct blk_desc {
 	enum sig_type	sig_type;	/* Partition table signature type */
 	union {
 		uint32_t mbr_sig;	/* MBR integer signature */
-		efi_guid_t guid_sig;	/* GPT GUID Signature */
 	};
+
+	struct mmc *mmc;
+
 #if CONFIG_IS_ENABLED(BLK)
 	/*
 	 * For now we have a few functions which take struct blk_desc as a
@@ -113,12 +113,6 @@ struct blk_desc {
 	(PAD_SIZE(size, blk_desc->blksz))
 
 #if CONFIG_IS_ENABLED(BLOCK_CACHE)
-
-/**
- * blkcache_init() - initialize the block cache list pointers
- */
-int blkcache_init(void);
-
 /**
  * blkcache_read() - attempt to read a set of blocks from cache
  *
@@ -129,7 +123,7 @@ int blkcache_init(void);
  * @param blksz - size in bytes of each block
  * @param buf - buffer to contain cached data
  *
- * @return - 1 if block returned from cache, 0 otherwise.
+ * @return - '1' if block returned from cache, '0' otherwise.
  */
 int blkcache_read(int iftype, int dev,
 		  lbaint_t start, lbaint_t blkcnt,

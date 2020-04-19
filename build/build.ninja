@@ -1,0 +1,831 @@
+# This file is generated, please don't edit by hand
+
+ninja_required_version = 1.7
+
+aarch64_prefix = aarch64-linux-musl-
+topdir = ..
+srcdir = $topdir/src
+ubootdir = $topdir/src/uboot
+builddir = .
+linker_script = $srcdir/p-boot.ld
+startup_code = $srcdir/start.S
+cflags_mkboot = 
+cxxflags_mkboot = 
+ldflags_mkboot = 
+cflags_bconf_native = 
+cxxflags_bconf_native = 
+ldflags_bconf_native = 
+cflags_bconf = 
+cxxflags_bconf = 
+ldflags_bconf = -static -s
+pboot_cflags = -D__KERNEL__ -D__UBOOT__ -D__ARM__ -D__LINUX_ARM_ARCH__=8 -DCONFIG_ARM64 -DCONFIG_MACH_SUN50I -DCONFIG_SUNXI_GEN_SUN6I -DCONFIG_SPL_BUILD -DCONFIG_CONS_INDEX=1 -DCONFIG_SUNXI_DE2 -DCONFIG_SUNXI_A64_TIMER_ERRATUM -DCONFIG_SYS_HZ=1000 -DCONFIG_SUNXI_DRAM_DW -DCONFIG_SUNXI_DRAM_LPDDR3_STOCK -DCONFIG_SUNXI_DRAM_LPDDR3 -DCONFIG_DRAM_CLK=552 -DCONFIG_DRAM_ZQ=3881949 -DCONFIG_NR_DRAM_BANKS=1 -DCONFIG_SUNXI_DRAM_DW_32BIT -DCONFIG_SUNXI_DRAM_MAX_SIZE=0xC0000000 -DCONFIG_DRAM_ODT_EN -DCONFIG_SYS_CLK_FREQ=816000000 -DCONFIG_SYS_SDRAM_BASE=0x40000000 -DCONFIG_SUNXI_SRAM_ADDRESS=0x10000 -DCONFIG_SYS_CACHE_SHIFT_6 -DCONFIG_SYS_CACHELINE_SIZE=64 -DCONFIG_MMC_QUIRKS -DCONFIG_MMC2_BUS_WIDTH=8 -DCONFIG_MMC_SUNXI_HAS_NEW_MODE -DCONFIG_MMC_HW_PARTITIONING -DCONFIG_ARCH_FIXUP_FDT_MEMORY -DFDT_ASSUME_MASK=0xff -include linux/kconfig.h -I$builddir -I$srcdir -I$ubootdir/include -I$ubootdir/include/asm-generic -I$ubootdir/arch/arm/include -I$ubootdir/arch/arm/include/asm -I$ubootdir/arch/arm/include/asm/proc-armv -I$ubootdir/arch/arm/include/asm/armv8 -I$ubootdir/arch/arm/include/asm/arch-sunxi -I$ubootdir/scripts/dtc/libfdt -I$ubootdir/lib/libfdt -Wall -Wstrict-prototypes -Wno-format-security -Wno-format-nonliteral -Werror=date-time -Wno-unused-function -fno-builtin -ffreestanding -fshort-wchar -fno-strict-aliasing -fno-PIE -fno-stack-protector -fno-delete-null-pointer-checks -fno-pic -mstrict-align -fno-common -ffixed-r9 -ffixed-x18 -march=armv8-a -Os -g0 -ffunction-sections -fdata-sections -fstack-usage
+pboot_ldflags = -T$linker_script -static -Wl,--gc-sections -Wl,--fix-cortex-a53-843419 -nostdlib
+cflags_p_boot_debug = $pboot_cflags -DSERIAL_CONSOLE -DDEBUG
+cxxflags_p_boot_debug = 
+ldflags_p_boot_debug = $pboot_ldflags
+cflags_p_boot_debug_lto = $pboot_cflags -DSERIAL_CONSOLE -DDEBUG -flto
+cxxflags_p_boot_debug_lto = 
+ldflags_p_boot_debug_lto = $pboot_ldflags -flto
+cflags_p_boot = $pboot_cflags -DSERIAL_CONSOLE
+cxxflags_p_boot = 
+ldflags_p_boot = $pboot_ldflags
+cflags_p_boot_lto = $pboot_cflags -DSERIAL_CONSOLE -flto
+cxxflags_p_boot_lto = 
+ldflags_p_boot_lto = $pboot_ldflags -flto
+cflags_p_boot_silent = $pboot_cflags
+cxxflags_p_boot_silent = 
+ldflags_p_boot_silent = $pboot_ldflags
+cflags_p_boot_silent_lto = $pboot_cflags -flto
+cxxflags_p_boot_silent_lto = 
+ldflags_p_boot_silent_lto = $pboot_ldflags -flto
+
+rule copy
+  command = cp -T $in $out
+  description = COPY $out
+
+rule command
+  command = $cmd
+  description = $desc
+  restat = 1
+
+rule configure
+  command = php -f $topdir/configure.php
+  description = Reconfiguring
+  generator = 1
+
+rule mkver
+  command = $topdir/build-ver.sh $out
+  description = MKVER $out
+  restat = 1
+
+rule ln_s
+  command = ln -s $out
+  description = LN_S $out
+  restat = 1
+
+rule cc
+  command = ${aarch64_prefix}gcc -MMD -MT $out -MF $out.d $cflags -c $in -o $out
+  description = CC $out
+  depfile = $out.d
+  deps = gcc
+
+rule cxx
+  command = ${aarch64_prefix}g++ -MMD -MT $out -MF $out.d $cxxflags -c $in -o $out
+  description = CXX $out
+  depfile = $out.d
+  deps = gcc
+
+rule as
+  command = ${aarch64_prefix}as -o $out $in
+  description = AS $out
+
+rule link
+  command = ${aarch64_prefix}gcc -o $out $cflags $ldflags -Wl,--start-group $in $libs -Wl,--end-group
+  description = LINK $out
+
+rule size
+  command = ${aarch64_prefix}size $in > $out
+  description = SIZE $out
+
+rule elf2bin
+  command = ${aarch64_prefix}objcopy -O binary $in $out
+  description = OBJCOPY $out
+
+rule elf2ihex
+  command = ${aarch64_prefix}objcopy $opts -O ihex $in $out
+  description = OBJCOPY $out
+
+rule elf2as
+  command = ${aarch64_prefix}objdump -D $in > $out
+  description = OBJDUMP $out
+
+rule cc_native
+  command = gcc -MMD -MT $out -MF $out.d $cflags -c $in -o $out
+  description = CC $out
+  depfile = $out.d
+  deps = gcc
+
+rule cxx_native
+  command = g++ -MMD -MT $out -MF $out.d $cxxflags -c $in -o $out
+  description = CXX $out
+  depfile = $out.d
+  deps = gcc
+
+rule as_native
+  command = as -o $out $in
+  description = AS $out
+
+rule link_native
+  command = gcc -o $out $cflags $ldflags -Wl,--start-group $in $libs -Wl,--end-group
+  description = LINK $out
+
+rule size_native
+  command = size $in > $out
+  description = SIZE $out
+
+rule elf2bin_native
+  command = objcopy -O binary $in $out
+  description = OBJCOPY $out
+
+rule elf2ihex_native
+  command = objcopy $opts -O ihex $in $out
+  description = OBJCOPY $out
+
+rule elf2as_native
+  command = objdump -D $in > $out
+  description = OBJDUMP $out
+
+rule addegon
+  command = $builddir/mksunxiboot --default-dt sd $in $out
+  description = EGON $out
+
+build clean: command 
+  cmd = ninja -t clean
+  desc = clean
+  pool = console
+
+build $builddir/mksunxiboot.objs/mksunxiboot.o: cc_native $ubootdir/tools/mksunxiboot.c
+  cflags = $cflags_mkboot
+
+build $builddir/mksunxiboot: link_native $builddir/mksunxiboot.objs/mksunxiboot.o
+  ldflags = $ldflags_mkboot
+  libs = 
+  cflags = $cflags_mkboot
+
+build $builddir/p-boot-conf-native.objs/conf.o: cc_native $srcdir/conf.c
+  cflags = $cflags_bconf_native
+
+build $builddir/p-boot-conf-native: link_native $builddir/p-boot-conf-native.objs/conf.o
+  ldflags = $ldflags_bconf_native
+  libs = 
+  cflags = $cflags_bconf_native
+
+build $builddir/p-boot-conf.objs/conf.o: cc $srcdir/conf.c
+  cflags = $cflags_bconf
+
+build $builddir/p-boot-conf: link $builddir/p-boot-conf.objs/conf.o
+  ldflags = $ldflags_bconf
+  libs = 
+  cflags = $cflags_bconf
+
+build $builddir/p-boot-debug/p-boot.elf.objs/start.o: cc $srcdir/start.S
+  cflags = $cflags_p_boot_debug -D__ASSEMBLY__
+
+build $builddir/p-boot-debug/p-boot.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/debug.o: cc $srcdir/debug.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/lib.o: cc $srcdir/lib.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/pmic.o: cc $srcdir/pmic.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/mmu.o: cc $srcdir/mmu.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/lradc.o: cc $srcdir/lradc.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/cache.o: cc $ubootdir/arch/arm/cpu/armv8/cache.S
+  cflags = $cflags_p_boot_debug -D__ASSEMBLY__
+
+build $builddir/p-boot-debug/p-boot.elf.objs/tlb.o: cc $ubootdir/arch/arm/cpu/armv8/tlb.S
+  cflags = $cflags_p_boot_debug -D__ASSEMBLY__
+
+build $builddir/p-boot-debug/p-boot.elf.objs/transition.o: cc $ubootdir/arch/arm/cpu/armv8/transition.S
+  cflags = $cflags_p_boot_debug -D__ASSEMBLY__
+
+build $builddir/p-boot-debug/p-boot.elf.objs/cache_v8.o: cc $ubootdir/arch/arm/cpu/armv8/cache_v8.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/generic_timer.o: cc $ubootdir/arch/arm/cpu/armv8/generic_timer.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/cache1.o: cc $ubootdir/arch/arm/lib/cache.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/clock_sun6i.o: cc $ubootdir/arch/arm/mach-sunxi/clock_sun6i.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/dram_helpers.o: cc $ubootdir/arch/arm/mach-sunxi/dram_helpers.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/dram_sunxi_dw.o: cc $ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/pinmux.o: cc $ubootdir/arch/arm/mach-sunxi/pinmux.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/lpddr3_stock.o: cc $ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt.o: cc $ubootdir/lib/libfdt/fdt.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_addresses.o: cc $ubootdir/lib/libfdt/fdt_addresses.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_empty_tree.o: cc $ubootdir/lib/libfdt/fdt_empty_tree.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_rw.o: cc $ubootdir/lib/libfdt/fdt_rw.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_strerror.o: cc $ubootdir/lib/libfdt/fdt_strerror.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_sw.o: cc $ubootdir/lib/libfdt/fdt_sw.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_wip.o: cc $ubootdir/lib/libfdt/fdt_wip.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_region.o: cc $ubootdir/lib/libfdt/fdt_region.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_ro.o: cc $ubootdir/lib/libfdt/fdt_ro.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/sunxi_gpio.o: cc $ubootdir/drivers/gpio/sunxi_gpio.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/mmc.o: cc $ubootdir/drivers/mmc/mmc.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/sunxi_mmc.o: cc $ubootdir/drivers/mmc/sunxi_mmc.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/fdt_support.o: cc $ubootdir/common/fdt_support.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf.objs/time.o: cc $ubootdir/lib/time.c
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot.elf: link $builddir/p-boot-debug/p-boot.elf.objs/start.o $builddir/p-boot-debug/p-boot.elf.objs/main.o $builddir/p-boot-debug/p-boot.elf.objs/debug.o $builddir/p-boot-debug/p-boot.elf.objs/lib.o $builddir/p-boot-debug/p-boot.elf.objs/pmic.o $builddir/p-boot-debug/p-boot.elf.objs/mmu.o $builddir/p-boot-debug/p-boot.elf.objs/lradc.o $builddir/p-boot-debug/p-boot.elf.objs/cache.o $builddir/p-boot-debug/p-boot.elf.objs/tlb.o $builddir/p-boot-debug/p-boot.elf.objs/transition.o $builddir/p-boot-debug/p-boot.elf.objs/cache_v8.o $builddir/p-boot-debug/p-boot.elf.objs/generic_timer.o $builddir/p-boot-debug/p-boot.elf.objs/cache1.o $builddir/p-boot-debug/p-boot.elf.objs/clock_sun6i.o $builddir/p-boot-debug/p-boot.elf.objs/dram_helpers.o $builddir/p-boot-debug/p-boot.elf.objs/dram_sunxi_dw.o $builddir/p-boot-debug/p-boot.elf.objs/pinmux.o $builddir/p-boot-debug/p-boot.elf.objs/lpddr3_stock.o $builddir/p-boot-debug/p-boot.elf.objs/fdt.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_addresses.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_empty_tree.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_rw.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_strerror.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_sw.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_wip.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_region.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_ro.o $builddir/p-boot-debug/p-boot.elf.objs/sunxi_gpio.o $builddir/p-boot-debug/p-boot.elf.objs/mmc.o $builddir/p-boot-debug/p-boot.elf.objs/sunxi_mmc.o $builddir/p-boot-debug/p-boot.elf.objs/fdt_support.o $builddir/p-boot-debug/p-boot.elf.objs/time.o | $linker_script
+  ldflags = $ldflags_p_boot_debug
+  libs = 
+  cflags = $cflags_p_boot_debug
+
+build $builddir/p-boot-debug/p-boot-bare.bin: elf2bin $builddir/p-boot-debug/p-boot.elf
+
+build $builddir/p-boot-debug.bin: addegon $builddir/p-boot-debug/p-boot-bare.bin | $builddir/mksunxiboot
+
+build $builddir/p-boot-debug/p-boot.as: elf2as $builddir/p-boot-debug/p-boot.elf
+
+build $builddir/p-boot-debug/p-boot.size: size $builddir/p-boot-debug/p-boot.elf
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/start.o: cc $srcdir/start.S
+  cflags = $cflags_p_boot_debug_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/debug.o: cc $srcdir/debug.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/lib.o: cc $srcdir/lib.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/pmic.o: cc $srcdir/pmic.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/mmu.o: cc $srcdir/mmu.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/lradc.o: cc $srcdir/lradc.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/cache.o: cc $ubootdir/arch/arm/cpu/armv8/cache.S
+  cflags = $cflags_p_boot_debug_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/tlb.o: cc $ubootdir/arch/arm/cpu/armv8/tlb.S
+  cflags = $cflags_p_boot_debug_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/transition.o: cc $ubootdir/arch/arm/cpu/armv8/transition.S
+  cflags = $cflags_p_boot_debug_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/cache_v8.o: cc $ubootdir/arch/arm/cpu/armv8/cache_v8.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/generic_timer.o: cc $ubootdir/arch/arm/cpu/armv8/generic_timer.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/cache1.o: cc $ubootdir/arch/arm/lib/cache.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/clock_sun6i.o: cc $ubootdir/arch/arm/mach-sunxi/clock_sun6i.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/dram_helpers.o: cc $ubootdir/arch/arm/mach-sunxi/dram_helpers.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/dram_sunxi_dw.o: cc $ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/pinmux.o: cc $ubootdir/arch/arm/mach-sunxi/pinmux.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/lpddr3_stock.o: cc $ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt.o: cc $ubootdir/lib/libfdt/fdt.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_addresses.o: cc $ubootdir/lib/libfdt/fdt_addresses.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_empty_tree.o: cc $ubootdir/lib/libfdt/fdt_empty_tree.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_rw.o: cc $ubootdir/lib/libfdt/fdt_rw.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_strerror.o: cc $ubootdir/lib/libfdt/fdt_strerror.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_sw.o: cc $ubootdir/lib/libfdt/fdt_sw.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_wip.o: cc $ubootdir/lib/libfdt/fdt_wip.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_region.o: cc $ubootdir/lib/libfdt/fdt_region.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_ro.o: cc $ubootdir/lib/libfdt/fdt_ro.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/sunxi_gpio.o: cc $ubootdir/drivers/gpio/sunxi_gpio.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/mmc.o: cc $ubootdir/drivers/mmc/mmc.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/sunxi_mmc.o: cc $ubootdir/drivers/mmc/sunxi_mmc.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_support.o: cc $ubootdir/common/fdt_support.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf.objs/time.o: cc $ubootdir/lib/time.c
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot.elf: link $builddir/p-boot-debug-lto/p-boot.elf.objs/start.o $builddir/p-boot-debug-lto/p-boot.elf.objs/main.o $builddir/p-boot-debug-lto/p-boot.elf.objs/debug.o $builddir/p-boot-debug-lto/p-boot.elf.objs/lib.o $builddir/p-boot-debug-lto/p-boot.elf.objs/pmic.o $builddir/p-boot-debug-lto/p-boot.elf.objs/mmu.o $builddir/p-boot-debug-lto/p-boot.elf.objs/lradc.o $builddir/p-boot-debug-lto/p-boot.elf.objs/cache.o $builddir/p-boot-debug-lto/p-boot.elf.objs/tlb.o $builddir/p-boot-debug-lto/p-boot.elf.objs/transition.o $builddir/p-boot-debug-lto/p-boot.elf.objs/cache_v8.o $builddir/p-boot-debug-lto/p-boot.elf.objs/generic_timer.o $builddir/p-boot-debug-lto/p-boot.elf.objs/cache1.o $builddir/p-boot-debug-lto/p-boot.elf.objs/clock_sun6i.o $builddir/p-boot-debug-lto/p-boot.elf.objs/dram_helpers.o $builddir/p-boot-debug-lto/p-boot.elf.objs/dram_sunxi_dw.o $builddir/p-boot-debug-lto/p-boot.elf.objs/pinmux.o $builddir/p-boot-debug-lto/p-boot.elf.objs/lpddr3_stock.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_addresses.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_empty_tree.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_rw.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_strerror.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_sw.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_wip.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_region.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_ro.o $builddir/p-boot-debug-lto/p-boot.elf.objs/sunxi_gpio.o $builddir/p-boot-debug-lto/p-boot.elf.objs/mmc.o $builddir/p-boot-debug-lto/p-boot.elf.objs/sunxi_mmc.o $builddir/p-boot-debug-lto/p-boot.elf.objs/fdt_support.o $builddir/p-boot-debug-lto/p-boot.elf.objs/time.o | $linker_script
+  ldflags = $ldflags_p_boot_debug_lto
+  libs = 
+  cflags = $cflags_p_boot_debug_lto
+
+build $builddir/p-boot-debug-lto/p-boot-bare.bin: elf2bin $builddir/p-boot-debug-lto/p-boot.elf
+
+build $builddir/p-boot-debug-lto.bin: addegon $builddir/p-boot-debug-lto/p-boot-bare.bin | $builddir/mksunxiboot
+
+build $builddir/p-boot-debug-lto/p-boot.as: elf2as $builddir/p-boot-debug-lto/p-boot.elf
+
+build $builddir/p-boot-debug-lto/p-boot.size: size $builddir/p-boot-debug-lto/p-boot.elf
+
+build $builddir/p-boot/p-boot.elf.objs/start.o: cc $srcdir/start.S
+  cflags = $cflags_p_boot -D__ASSEMBLY__
+
+build $builddir/p-boot/p-boot.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/debug.o: cc $srcdir/debug.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/lib.o: cc $srcdir/lib.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/pmic.o: cc $srcdir/pmic.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/mmu.o: cc $srcdir/mmu.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/lradc.o: cc $srcdir/lradc.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/cache.o: cc $ubootdir/arch/arm/cpu/armv8/cache.S
+  cflags = $cflags_p_boot -D__ASSEMBLY__
+
+build $builddir/p-boot/p-boot.elf.objs/tlb.o: cc $ubootdir/arch/arm/cpu/armv8/tlb.S
+  cflags = $cflags_p_boot -D__ASSEMBLY__
+
+build $builddir/p-boot/p-boot.elf.objs/transition.o: cc $ubootdir/arch/arm/cpu/armv8/transition.S
+  cflags = $cflags_p_boot -D__ASSEMBLY__
+
+build $builddir/p-boot/p-boot.elf.objs/cache_v8.o: cc $ubootdir/arch/arm/cpu/armv8/cache_v8.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/generic_timer.o: cc $ubootdir/arch/arm/cpu/armv8/generic_timer.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/cache1.o: cc $ubootdir/arch/arm/lib/cache.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/clock_sun6i.o: cc $ubootdir/arch/arm/mach-sunxi/clock_sun6i.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/dram_helpers.o: cc $ubootdir/arch/arm/mach-sunxi/dram_helpers.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/dram_sunxi_dw.o: cc $ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/pinmux.o: cc $ubootdir/arch/arm/mach-sunxi/pinmux.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/lpddr3_stock.o: cc $ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt.o: cc $ubootdir/lib/libfdt/fdt.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_addresses.o: cc $ubootdir/lib/libfdt/fdt_addresses.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_empty_tree.o: cc $ubootdir/lib/libfdt/fdt_empty_tree.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_rw.o: cc $ubootdir/lib/libfdt/fdt_rw.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_strerror.o: cc $ubootdir/lib/libfdt/fdt_strerror.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_sw.o: cc $ubootdir/lib/libfdt/fdt_sw.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_wip.o: cc $ubootdir/lib/libfdt/fdt_wip.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_region.o: cc $ubootdir/lib/libfdt/fdt_region.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_ro.o: cc $ubootdir/lib/libfdt/fdt_ro.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/sunxi_gpio.o: cc $ubootdir/drivers/gpio/sunxi_gpio.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/mmc.o: cc $ubootdir/drivers/mmc/mmc.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/sunxi_mmc.o: cc $ubootdir/drivers/mmc/sunxi_mmc.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/fdt_support.o: cc $ubootdir/common/fdt_support.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf.objs/time.o: cc $ubootdir/lib/time.c
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot.elf: link $builddir/p-boot/p-boot.elf.objs/start.o $builddir/p-boot/p-boot.elf.objs/main.o $builddir/p-boot/p-boot.elf.objs/debug.o $builddir/p-boot/p-boot.elf.objs/lib.o $builddir/p-boot/p-boot.elf.objs/pmic.o $builddir/p-boot/p-boot.elf.objs/mmu.o $builddir/p-boot/p-boot.elf.objs/lradc.o $builddir/p-boot/p-boot.elf.objs/cache.o $builddir/p-boot/p-boot.elf.objs/tlb.o $builddir/p-boot/p-boot.elf.objs/transition.o $builddir/p-boot/p-boot.elf.objs/cache_v8.o $builddir/p-boot/p-boot.elf.objs/generic_timer.o $builddir/p-boot/p-boot.elf.objs/cache1.o $builddir/p-boot/p-boot.elf.objs/clock_sun6i.o $builddir/p-boot/p-boot.elf.objs/dram_helpers.o $builddir/p-boot/p-boot.elf.objs/dram_sunxi_dw.o $builddir/p-boot/p-boot.elf.objs/pinmux.o $builddir/p-boot/p-boot.elf.objs/lpddr3_stock.o $builddir/p-boot/p-boot.elf.objs/fdt.o $builddir/p-boot/p-boot.elf.objs/fdt_addresses.o $builddir/p-boot/p-boot.elf.objs/fdt_empty_tree.o $builddir/p-boot/p-boot.elf.objs/fdt_rw.o $builddir/p-boot/p-boot.elf.objs/fdt_strerror.o $builddir/p-boot/p-boot.elf.objs/fdt_sw.o $builddir/p-boot/p-boot.elf.objs/fdt_wip.o $builddir/p-boot/p-boot.elf.objs/fdt_region.o $builddir/p-boot/p-boot.elf.objs/fdt_ro.o $builddir/p-boot/p-boot.elf.objs/sunxi_gpio.o $builddir/p-boot/p-boot.elf.objs/mmc.o $builddir/p-boot/p-boot.elf.objs/sunxi_mmc.o $builddir/p-boot/p-boot.elf.objs/fdt_support.o $builddir/p-boot/p-boot.elf.objs/time.o | $linker_script
+  ldflags = $ldflags_p_boot
+  libs = 
+  cflags = $cflags_p_boot
+
+build $builddir/p-boot/p-boot-bare.bin: elf2bin $builddir/p-boot/p-boot.elf
+
+build $builddir/p-boot.bin: addegon $builddir/p-boot/p-boot-bare.bin | $builddir/mksunxiboot
+
+build $builddir/p-boot/p-boot.as: elf2as $builddir/p-boot/p-boot.elf
+
+build $builddir/p-boot/p-boot.size: size $builddir/p-boot/p-boot.elf
+
+build $builddir/p-boot-lto/p-boot.elf.objs/start.o: cc $srcdir/start.S
+  cflags = $cflags_p_boot_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-lto/p-boot.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/debug.o: cc $srcdir/debug.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/lib.o: cc $srcdir/lib.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/pmic.o: cc $srcdir/pmic.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/mmu.o: cc $srcdir/mmu.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/lradc.o: cc $srcdir/lradc.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/cache.o: cc $ubootdir/arch/arm/cpu/armv8/cache.S
+  cflags = $cflags_p_boot_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-lto/p-boot.elf.objs/tlb.o: cc $ubootdir/arch/arm/cpu/armv8/tlb.S
+  cflags = $cflags_p_boot_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-lto/p-boot.elf.objs/transition.o: cc $ubootdir/arch/arm/cpu/armv8/transition.S
+  cflags = $cflags_p_boot_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-lto/p-boot.elf.objs/cache_v8.o: cc $ubootdir/arch/arm/cpu/armv8/cache_v8.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/generic_timer.o: cc $ubootdir/arch/arm/cpu/armv8/generic_timer.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/cache1.o: cc $ubootdir/arch/arm/lib/cache.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/clock_sun6i.o: cc $ubootdir/arch/arm/mach-sunxi/clock_sun6i.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/dram_helpers.o: cc $ubootdir/arch/arm/mach-sunxi/dram_helpers.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/dram_sunxi_dw.o: cc $ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/pinmux.o: cc $ubootdir/arch/arm/mach-sunxi/pinmux.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/lpddr3_stock.o: cc $ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt.o: cc $ubootdir/lib/libfdt/fdt.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_addresses.o: cc $ubootdir/lib/libfdt/fdt_addresses.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_empty_tree.o: cc $ubootdir/lib/libfdt/fdt_empty_tree.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_rw.o: cc $ubootdir/lib/libfdt/fdt_rw.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_strerror.o: cc $ubootdir/lib/libfdt/fdt_strerror.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_sw.o: cc $ubootdir/lib/libfdt/fdt_sw.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_wip.o: cc $ubootdir/lib/libfdt/fdt_wip.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_region.o: cc $ubootdir/lib/libfdt/fdt_region.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_ro.o: cc $ubootdir/lib/libfdt/fdt_ro.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/sunxi_gpio.o: cc $ubootdir/drivers/gpio/sunxi_gpio.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/mmc.o: cc $ubootdir/drivers/mmc/mmc.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/sunxi_mmc.o: cc $ubootdir/drivers/mmc/sunxi_mmc.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/fdt_support.o: cc $ubootdir/common/fdt_support.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf.objs/time.o: cc $ubootdir/lib/time.c
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot.elf: link $builddir/p-boot-lto/p-boot.elf.objs/start.o $builddir/p-boot-lto/p-boot.elf.objs/main.o $builddir/p-boot-lto/p-boot.elf.objs/debug.o $builddir/p-boot-lto/p-boot.elf.objs/lib.o $builddir/p-boot-lto/p-boot.elf.objs/pmic.o $builddir/p-boot-lto/p-boot.elf.objs/mmu.o $builddir/p-boot-lto/p-boot.elf.objs/lradc.o $builddir/p-boot-lto/p-boot.elf.objs/cache.o $builddir/p-boot-lto/p-boot.elf.objs/tlb.o $builddir/p-boot-lto/p-boot.elf.objs/transition.o $builddir/p-boot-lto/p-boot.elf.objs/cache_v8.o $builddir/p-boot-lto/p-boot.elf.objs/generic_timer.o $builddir/p-boot-lto/p-boot.elf.objs/cache1.o $builddir/p-boot-lto/p-boot.elf.objs/clock_sun6i.o $builddir/p-boot-lto/p-boot.elf.objs/dram_helpers.o $builddir/p-boot-lto/p-boot.elf.objs/dram_sunxi_dw.o $builddir/p-boot-lto/p-boot.elf.objs/pinmux.o $builddir/p-boot-lto/p-boot.elf.objs/lpddr3_stock.o $builddir/p-boot-lto/p-boot.elf.objs/fdt.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_addresses.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_empty_tree.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_rw.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_strerror.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_sw.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_wip.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_region.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_ro.o $builddir/p-boot-lto/p-boot.elf.objs/sunxi_gpio.o $builddir/p-boot-lto/p-boot.elf.objs/mmc.o $builddir/p-boot-lto/p-boot.elf.objs/sunxi_mmc.o $builddir/p-boot-lto/p-boot.elf.objs/fdt_support.o $builddir/p-boot-lto/p-boot.elf.objs/time.o | $linker_script
+  ldflags = $ldflags_p_boot_lto
+  libs = 
+  cflags = $cflags_p_boot_lto
+
+build $builddir/p-boot-lto/p-boot-bare.bin: elf2bin $builddir/p-boot-lto/p-boot.elf
+
+build $builddir/p-boot-lto.bin: addegon $builddir/p-boot-lto/p-boot-bare.bin | $builddir/mksunxiboot
+
+build $builddir/p-boot-lto/p-boot.as: elf2as $builddir/p-boot-lto/p-boot.elf
+
+build $builddir/p-boot-lto/p-boot.size: size $builddir/p-boot-lto/p-boot.elf
+
+build $builddir/p-boot-silent/p-boot.elf.objs/start.o: cc $srcdir/start.S
+  cflags = $cflags_p_boot_silent -D__ASSEMBLY__
+
+build $builddir/p-boot-silent/p-boot.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/debug.o: cc $srcdir/debug.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/lib.o: cc $srcdir/lib.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/pmic.o: cc $srcdir/pmic.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/mmu.o: cc $srcdir/mmu.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/lradc.o: cc $srcdir/lradc.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/cache.o: cc $ubootdir/arch/arm/cpu/armv8/cache.S
+  cflags = $cflags_p_boot_silent -D__ASSEMBLY__
+
+build $builddir/p-boot-silent/p-boot.elf.objs/tlb.o: cc $ubootdir/arch/arm/cpu/armv8/tlb.S
+  cflags = $cflags_p_boot_silent -D__ASSEMBLY__
+
+build $builddir/p-boot-silent/p-boot.elf.objs/transition.o: cc $ubootdir/arch/arm/cpu/armv8/transition.S
+  cflags = $cflags_p_boot_silent -D__ASSEMBLY__
+
+build $builddir/p-boot-silent/p-boot.elf.objs/cache_v8.o: cc $ubootdir/arch/arm/cpu/armv8/cache_v8.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/generic_timer.o: cc $ubootdir/arch/arm/cpu/armv8/generic_timer.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/cache1.o: cc $ubootdir/arch/arm/lib/cache.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/clock_sun6i.o: cc $ubootdir/arch/arm/mach-sunxi/clock_sun6i.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/dram_helpers.o: cc $ubootdir/arch/arm/mach-sunxi/dram_helpers.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/dram_sunxi_dw.o: cc $ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/pinmux.o: cc $ubootdir/arch/arm/mach-sunxi/pinmux.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/lpddr3_stock.o: cc $ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt.o: cc $ubootdir/lib/libfdt/fdt.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_addresses.o: cc $ubootdir/lib/libfdt/fdt_addresses.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_empty_tree.o: cc $ubootdir/lib/libfdt/fdt_empty_tree.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_rw.o: cc $ubootdir/lib/libfdt/fdt_rw.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_strerror.o: cc $ubootdir/lib/libfdt/fdt_strerror.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_sw.o: cc $ubootdir/lib/libfdt/fdt_sw.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_wip.o: cc $ubootdir/lib/libfdt/fdt_wip.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_region.o: cc $ubootdir/lib/libfdt/fdt_region.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_ro.o: cc $ubootdir/lib/libfdt/fdt_ro.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/sunxi_gpio.o: cc $ubootdir/drivers/gpio/sunxi_gpio.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/mmc.o: cc $ubootdir/drivers/mmc/mmc.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/sunxi_mmc.o: cc $ubootdir/drivers/mmc/sunxi_mmc.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/fdt_support.o: cc $ubootdir/common/fdt_support.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf.objs/time.o: cc $ubootdir/lib/time.c
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot.elf: link $builddir/p-boot-silent/p-boot.elf.objs/start.o $builddir/p-boot-silent/p-boot.elf.objs/main.o $builddir/p-boot-silent/p-boot.elf.objs/debug.o $builddir/p-boot-silent/p-boot.elf.objs/lib.o $builddir/p-boot-silent/p-boot.elf.objs/pmic.o $builddir/p-boot-silent/p-boot.elf.objs/mmu.o $builddir/p-boot-silent/p-boot.elf.objs/lradc.o $builddir/p-boot-silent/p-boot.elf.objs/cache.o $builddir/p-boot-silent/p-boot.elf.objs/tlb.o $builddir/p-boot-silent/p-boot.elf.objs/transition.o $builddir/p-boot-silent/p-boot.elf.objs/cache_v8.o $builddir/p-boot-silent/p-boot.elf.objs/generic_timer.o $builddir/p-boot-silent/p-boot.elf.objs/cache1.o $builddir/p-boot-silent/p-boot.elf.objs/clock_sun6i.o $builddir/p-boot-silent/p-boot.elf.objs/dram_helpers.o $builddir/p-boot-silent/p-boot.elf.objs/dram_sunxi_dw.o $builddir/p-boot-silent/p-boot.elf.objs/pinmux.o $builddir/p-boot-silent/p-boot.elf.objs/lpddr3_stock.o $builddir/p-boot-silent/p-boot.elf.objs/fdt.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_addresses.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_empty_tree.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_rw.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_strerror.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_sw.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_wip.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_region.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_ro.o $builddir/p-boot-silent/p-boot.elf.objs/sunxi_gpio.o $builddir/p-boot-silent/p-boot.elf.objs/mmc.o $builddir/p-boot-silent/p-boot.elf.objs/sunxi_mmc.o $builddir/p-boot-silent/p-boot.elf.objs/fdt_support.o $builddir/p-boot-silent/p-boot.elf.objs/time.o | $linker_script
+  ldflags = $ldflags_p_boot_silent
+  libs = 
+  cflags = $cflags_p_boot_silent
+
+build $builddir/p-boot-silent/p-boot-bare.bin: elf2bin $builddir/p-boot-silent/p-boot.elf
+
+build $builddir/p-boot-silent.bin: addegon $builddir/p-boot-silent/p-boot-bare.bin | $builddir/mksunxiboot
+
+build $builddir/p-boot-silent/p-boot.as: elf2as $builddir/p-boot-silent/p-boot.elf
+
+build $builddir/p-boot-silent/p-boot.size: size $builddir/p-boot-silent/p-boot.elf
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/start.o: cc $srcdir/start.S
+  cflags = $cflags_p_boot_silent_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/debug.o: cc $srcdir/debug.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/lib.o: cc $srcdir/lib.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/pmic.o: cc $srcdir/pmic.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/mmu.o: cc $srcdir/mmu.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/lradc.o: cc $srcdir/lradc.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/cache.o: cc $ubootdir/arch/arm/cpu/armv8/cache.S
+  cflags = $cflags_p_boot_silent_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/tlb.o: cc $ubootdir/arch/arm/cpu/armv8/tlb.S
+  cflags = $cflags_p_boot_silent_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/transition.o: cc $ubootdir/arch/arm/cpu/armv8/transition.S
+  cflags = $cflags_p_boot_silent_lto -D__ASSEMBLY__
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/cache_v8.o: cc $ubootdir/arch/arm/cpu/armv8/cache_v8.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/generic_timer.o: cc $ubootdir/arch/arm/cpu/armv8/generic_timer.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/cache1.o: cc $ubootdir/arch/arm/lib/cache.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/clock_sun6i.o: cc $ubootdir/arch/arm/mach-sunxi/clock_sun6i.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/dram_helpers.o: cc $ubootdir/arch/arm/mach-sunxi/dram_helpers.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/dram_sunxi_dw.o: cc $ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/pinmux.o: cc $ubootdir/arch/arm/mach-sunxi/pinmux.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/lpddr3_stock.o: cc $ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt.o: cc $ubootdir/lib/libfdt/fdt.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_addresses.o: cc $ubootdir/lib/libfdt/fdt_addresses.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_empty_tree.o: cc $ubootdir/lib/libfdt/fdt_empty_tree.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_rw.o: cc $ubootdir/lib/libfdt/fdt_rw.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_strerror.o: cc $ubootdir/lib/libfdt/fdt_strerror.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_sw.o: cc $ubootdir/lib/libfdt/fdt_sw.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_wip.o: cc $ubootdir/lib/libfdt/fdt_wip.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_region.o: cc $ubootdir/lib/libfdt/fdt_region.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_ro.o: cc $ubootdir/lib/libfdt/fdt_ro.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/sunxi_gpio.o: cc $ubootdir/drivers/gpio/sunxi_gpio.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/mmc.o: cc $ubootdir/drivers/mmc/mmc.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/sunxi_mmc.o: cc $ubootdir/drivers/mmc/sunxi_mmc.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_support.o: cc $ubootdir/common/fdt_support.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf.objs/time.o: cc $ubootdir/lib/time.c
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot.elf: link $builddir/p-boot-silent-lto/p-boot.elf.objs/start.o $builddir/p-boot-silent-lto/p-boot.elf.objs/main.o $builddir/p-boot-silent-lto/p-boot.elf.objs/debug.o $builddir/p-boot-silent-lto/p-boot.elf.objs/lib.o $builddir/p-boot-silent-lto/p-boot.elf.objs/pmic.o $builddir/p-boot-silent-lto/p-boot.elf.objs/mmu.o $builddir/p-boot-silent-lto/p-boot.elf.objs/lradc.o $builddir/p-boot-silent-lto/p-boot.elf.objs/cache.o $builddir/p-boot-silent-lto/p-boot.elf.objs/tlb.o $builddir/p-boot-silent-lto/p-boot.elf.objs/transition.o $builddir/p-boot-silent-lto/p-boot.elf.objs/cache_v8.o $builddir/p-boot-silent-lto/p-boot.elf.objs/generic_timer.o $builddir/p-boot-silent-lto/p-boot.elf.objs/cache1.o $builddir/p-boot-silent-lto/p-boot.elf.objs/clock_sun6i.o $builddir/p-boot-silent-lto/p-boot.elf.objs/dram_helpers.o $builddir/p-boot-silent-lto/p-boot.elf.objs/dram_sunxi_dw.o $builddir/p-boot-silent-lto/p-boot.elf.objs/pinmux.o $builddir/p-boot-silent-lto/p-boot.elf.objs/lpddr3_stock.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_addresses.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_empty_tree.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_rw.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_strerror.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_sw.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_wip.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_region.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_ro.o $builddir/p-boot-silent-lto/p-boot.elf.objs/sunxi_gpio.o $builddir/p-boot-silent-lto/p-boot.elf.objs/mmc.o $builddir/p-boot-silent-lto/p-boot.elf.objs/sunxi_mmc.o $builddir/p-boot-silent-lto/p-boot.elf.objs/fdt_support.o $builddir/p-boot-silent-lto/p-boot.elf.objs/time.o | $linker_script
+  ldflags = $ldflags_p_boot_silent_lto
+  libs = 
+  cflags = $cflags_p_boot_silent_lto
+
+build $builddir/p-boot-silent-lto/p-boot-bare.bin: elf2bin $builddir/p-boot-silent-lto/p-boot.elf
+
+build $builddir/p-boot-silent-lto.bin: addegon $builddir/p-boot-silent-lto/p-boot-bare.bin | $builddir/mksunxiboot
+
+build $builddir/p-boot-silent-lto/p-boot.as: elf2as $builddir/p-boot-silent-lto/p-boot.elf
+
+build $builddir/p-boot-silent-lto/p-boot.size: size $builddir/p-boot-silent-lto/p-boot.elf
+
+build $builddir/build-ver.h: mkver always
+
+build always: phony 
+
+build all: phony $builddir/p-boot-conf-native $builddir/p-boot-conf $builddir/p-boot-debug.bin $builddir/p-boot-debug/p-boot.as $builddir/p-boot-debug/p-boot.size $builddir/p-boot-debug-lto.bin $builddir/p-boot-debug-lto/p-boot.as $builddir/p-boot-debug-lto/p-boot.size $builddir/p-boot.bin $builddir/p-boot/p-boot.as $builddir/p-boot/p-boot.size $builddir/p-boot-lto.bin $builddir/p-boot-lto/p-boot.as $builddir/p-boot-lto/p-boot.size $builddir/p-boot-silent.bin $builddir/p-boot-silent/p-boot.as $builddir/p-boot-silent/p-boot.size $builddir/p-boot-silent-lto.bin $builddir/p-boot-silent-lto/p-boot.as $builddir/p-boot-silent-lto/p-boot.size
+
+default all

@@ -106,10 +106,10 @@
  * @return pointer to new memory region, or NULL if there is no more memory
  * available.
  */
-static inline void *malloc_cache_aligned(size_t size)
-{
-	return memalign(ARCH_DMA_MINALIGN, ALIGN(size, ARCH_DMA_MINALIGN));
-}
+//static inline void *malloc_cache_aligned(size_t size)
+//{
+//	return memalign(ARCH_DMA_MINALIGN, ALIGN(size, ARCH_DMA_MINALIGN));
+//}
 #endif
 
 #endif /* __ALIGNMEM_H */

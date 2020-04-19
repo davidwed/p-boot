@@ -4,8 +4,8 @@
  * David Feng <fenghua@phytium.com.cn>
  */
 
-#include <asm-offsets.h>
-#include <config.h>
+//#include <asm-offsets.h>
+//#include <config.h>
 #include <linux/linkage.h>
 #include <asm/macro.h>
 
