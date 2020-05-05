@@ -70,8 +70,6 @@ struct sunxi_mmc_priv {
 };
 
 #if !CONFIG_IS_ENABLED(DM_MMC)
-/* support 4 mmc hosts */
-struct sunxi_mmc_priv mmc_host[4];
 
 /*
 static int sunxi_mmc_getcd_gpio(int sdc_no)
@@ -86,9 +84,8 @@ static int sunxi_mmc_getcd_gpio(int sdc_no)
 }
 */
 
-static int mmc_resource_init(int sdc_no)
+static int mmc_resource_init(struct sunxi_mmc_priv *priv, unsigned sdc_no)
 {
-	struct sunxi_mmc_priv *priv = &mmc_host[sdc_no];
 	struct sunxi_ccm_reg *ccm = (struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 	int /*cd_pin, */ret = 0;
 
@@ -744,11 +741,16 @@ static const struct mmc_ops sunxi_mmc_ops = {
 struct mmc *sunxi_mmc_init(int sdc_no)
 {
 	struct sunxi_ccm_reg *ccm = (struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
-	struct sunxi_mmc_priv *priv = &mmc_host[sdc_no];
-	struct mmc_config *cfg = &priv->cfg;
+	struct sunxi_mmc_priv *priv;
+	struct mmc_config *cfg;
 	int ret;
 
+	priv = malloc(sizeof(struct sunxi_mmc_priv));
+	if (!priv)
+		return NULL;
+
 	memset(priv, '\0', sizeof(struct sunxi_mmc_priv));
+	cfg = &priv->cfg;
 
 	//cfg->name = "SUNXI SD/MMC";
 	cfg->ops  = &sunxi_mmc_ops;
@@ -767,6 +769,7 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 	cfg->f_min = 400000;
 	cfg->f_max = 52000000;
 
+
 	// enough descs for a realy big u-boot (64MiB)
 	priv->n_dma_descs = 512 * 65536 / DMA_BUF_MAX_SIZE;
 	priv->dma_descs = malloc(sizeof(struct sunxi_idma_desc)
@@ -774,7 +777,7 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 	if (priv->dma_descs == NULL)
 		return NULL;
 
-	if (mmc_resource_init(sdc_no) != 0)
+	if (mmc_resource_init(priv, sdc_no) != 0)
 		return NULL;
 
 	/* config ahb clock */
