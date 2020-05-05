@@ -757,7 +757,7 @@ static void soc_reset(void)
 
 void panic_shutdown(uint32_t code)
 {
-        // blink blue led in a binary pattern
+        // blink green led in a binary pattern
 
         green_led_set(0);
         for (int i = 0; i <= 16; i++) {
