@@ -41,7 +41,8 @@
 #include <build-ver.h>
 
 /* bootfs superblock offset from the start of SD/eMMC */
-#define BOOTFS_OFFSET (1024 * 1024)
+#define BOOTFS_OFFSET_EMMC (1024 * 1024)
+#define BOOTFS_OFFSET_SD (4 * 1024 * 1024)
 
 // {{{ SRAM/DRAM layout
 
@@ -566,12 +567,19 @@ static void pmic_reboot_with_timer(void)
 
 static int bootsel;
 
+static bool bootfs_sb_valid(void)
+{
+	struct bootfs_sb* sb = (struct bootfs_sb*)(uintptr_t)BOOTFS_SB_PA;
+
+	return !memcmp(sb->magic, ":BOOTFS:", 8);
+}
+
 static struct bootfs_conf* bootfs_select_configuration(void)
 {
 	struct bootfs_sb* sb = (struct bootfs_sb*)(uintptr_t)BOOTFS_SB_PA;
 	struct bootfs_conf* bc = (struct bootfs_conf*)(uintptr_t)(BOOTFS_SB_PA + 2048);
 
-	if (memcmp(sb->magic, ":BOOTFS:", 8))
+	if (!bootfs_sb_valid())
 		panic(10, "BOOTFS not found");
 
 	/* read volume keys status */
@@ -789,6 +797,8 @@ void panic_shutdown(uint32_t code)
 
 void main(void)
 {
+	struct mmc* mmc;
+
 	t0 = timer_get_boot_us();
 
 	green_led_set(1);
@@ -822,17 +832,20 @@ void main(void)
 
 	printf("Boot Source: %x\n", get_boot_source());
 
-#if 0
-	struct mmc* mmc = mmc_init_sd();
-#else
 	// we always boot from eMMC, even when bootloader started from SD card
 	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
-	struct mmc* mmc = mmc_init_emmc();
-#endif
+	mmc = mmc_init_emmc();
 
-	// read bootfs superblock and the config table
-	if (!mmc_read_data(mmc, BOOTFS_SB_PA, BOOTFS_OFFSET, 33 * 2048))
-		panic(14, "failed to read BOOTFS conf table");
+	uint64_t bootfs_offset = BOOTFS_OFFSET_EMMC;
+	if (!mmc || !mmc_read_data(mmc, BOOTFS_SB_PA, bootfs_offset, 33 * 2048) || !bootfs_sb_valid()) {
+		printf("BOOTFS not found on eMMC, trying SD card\n");
+		mmc = mmc_init_sd();
+
+		bootfs_offset = BOOTFS_OFFSET_SD;
+		// read bootfs superblock and the config table
+		if (!mmc || !mmc_read_data(mmc, BOOTFS_SB_PA, bootfs_offset, 33 * 2048) || !bootfs_sb_valid())
+			panic(14, "BOOTFS not found on SD card");
+	}
 
 	struct bootfs_conf* sbc = bootfs_select_configuration();
 
@@ -870,7 +883,7 @@ void main(void)
 		if (!dest)
 			break;
 
-		uint64_t img_off = (uint64_t)BOOTFS_OFFSET + __be32_to_cpu(im->data_off);
+		uint64_t img_off = (uint64_t)bootfs_offset + __be32_to_cpu(im->data_off);
 		uint32_t img_len = __be32_to_cpu(im->data_len);
 		if (img_off % 512)
 			panic(15, "failed to read BFCONF[%d]IMG[%d]: unaligned offset\n", bootsel, j);
