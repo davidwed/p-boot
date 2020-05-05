@@ -2,11 +2,6 @@
   - reset SoC with a flag in RTC data register to signal p-boot to
     perform poweroff right after pmic_init (also avoid reset loop)
 
-- add boot selection tool
-  - to write superblock default boot option
-  - to write RTC data reg via devmem or add support for these regs to
-    sysfs
-
 - read i2c proximity sensor
   - abort boot and poweroff if pressing the power button
     when the proximity sensor is covered (phone in the bag,

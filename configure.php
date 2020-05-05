@@ -396,6 +396,14 @@ $all_deps[] = add_cc_link_build([
 	'ldflags' => '-static -s',
 ]);
 
+$all_deps[] = add_cc_link_build([
+	'name' => 'bsel',
+	'output' => '$builddir/p-boot-select',
+	'sources' => ['$srcdir/bootsel.c'],
+	'cflags' => '',
+	'ldflags' => '-static -s',
+]);
+
 // p-boot
 
 $configs = [
