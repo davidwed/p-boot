@@ -29,7 +29,7 @@ Some benefits over U-Boot:
     boot configuration
 - Configure a stable WiFi MAC address in FDT based on SoC ID
 - A lot of free space for extensions (p-boot size limit is 32KiB, current
-  p-boot size is 21KiB)
+  p-boot size is 20KiB)
 - Easy to understand and customize
 
 Enjoy!
