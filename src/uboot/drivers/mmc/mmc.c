@@ -139,16 +139,24 @@ const char *mmc_mode_name(enum bus_mode mode)
 	      [SD_LEGACY]	= "SD Legacy",
 	      [MMC_HS]		= "MMC High Speed (26MHz)",
 	      [SD_HS]		= "SD High Speed (50MHz)",
+	      [MMC_HS_52]	= "MMC High Speed (52MHz)",
+	      [MMC_DDR_52]	= "MMC DDR52 (52MHz)",
+#if CONFIG_IS_ENABLED(MMC_UHS_SUPPORT)
 	      [UHS_SDR12]	= "UHS SDR12 (25MHz)",
 	      [UHS_SDR25]	= "UHS SDR25 (50MHz)",
 	      [UHS_SDR50]	= "UHS SDR50 (100MHz)",
 	      [UHS_SDR104]	= "UHS SDR104 (208MHz)",
 	      [UHS_DDR50]	= "UHS DDR50 (50MHz)",
-	      [MMC_HS_52]	= "MMC High Speed (52MHz)",
-	      [MMC_DDR_52]	= "MMC DDR52 (52MHz)",
+#endif
+#if CONFIG_IS_ENABLED(MMC_HS200_SUPPORT)
 	      [MMC_HS_200]	= "HS200 (200MHz)",
+#endif
+#if CONFIG_IS_ENABLED(MMC_HS400_SUPPORT)
 	      [MMC_HS_400]	= "HS400 (200MHz)",
+#endif
+#if CONFIG_IS_ENABLED(MMC_HS400_ES_SUPPORT)
 	      [MMC_HS_400_ES]	= "HS400ES (200MHz)",
+#endif
 	};
 
 	if (mode >= MMC_MODES_END)
@@ -167,6 +175,7 @@ static uint mmc_mode2freq(struct mmc *mmc, enum bus_mode mode)
 	      [SD_HS]		= 50000000,
 	      [MMC_HS_52]	= 52000000,
 	      [MMC_DDR_52]	= 52000000,
+#if CONFIG_IS_ENABLED(MMC_UHS_SUPPORT) || CONFIG_IS_ENABLED(MMC_HS200_SUPPORT) || CONFIG_IS_ENABLED(MMC_HS400_SUPPORT) || CONFIG_IS_ENABLED(MMC_HS400_ES_SUPPORT)
 	      [UHS_SDR12]	= 25000000,
 	      [UHS_SDR25]	= 50000000,
 	      [UHS_SDR50]	= 100000000,
@@ -175,11 +184,12 @@ static uint mmc_mode2freq(struct mmc *mmc, enum bus_mode mode)
 	      [MMC_HS_200]	= 200000000,
 	      [MMC_HS_400]	= 200000000,
 	      [MMC_HS_400_ES]	= 200000000,
+#endif
 	};
 
 	if (mode == MMC_LEGACY)
 		return mmc->legacy_speed;
-	else if (mode >= MMC_MODES_END)
+	else if (mode >= ARRAY_SIZE(freqs))
 		return 0;
 	else
 		return freqs[mode];
