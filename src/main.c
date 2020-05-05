@@ -936,7 +936,5 @@ void main(void)
         green_led_set(0);
         red_led_set(1);
 
-        panic(28, "test\n");
-
 	jump_to_atf();
 }
