@@ -591,8 +591,8 @@ static struct bootfs_conf* bootfs_select_configuration(void)
 
 	/* override boot configuration based on RTC data register */
         uint32_t rtc_data = readl((ulong)SUNXI_RTC_BASE + 0x100);
-        if (rtc_data > 1) {
-		bootsel = rtc_data - 1;
+        if ((rtc_data & 0x7f) > 0) {
+		bootsel = (rtc_data & 0x7f) - 1;
 		/* reset the PMIC register if bit 7 is set */
                 if (rtc_data & BIT(7))
                         writel(0, (ulong)SUNXI_RTC_BASE + 0x100);
@@ -601,8 +601,8 @@ static struct bootfs_conf* bootfs_select_configuration(void)
 
 	/* override boot configuration based on PMIC data register */
 	int reg = pmic_read_data(0);
-	if (reg > 1) {
-		bootsel = reg - 1;
+	if (reg >= 0 && (reg & 0x7f) > 0) {
+		bootsel = (reg & 0x7f) - 1;
 		/* reset the PMIC register */
                 if (reg & BIT(7))
                         pmic_write_data(0, 0);
