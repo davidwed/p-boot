@@ -215,6 +215,7 @@ static struct entry_point_info bl33_ep_info;
  * this function, all functions this calls, and all static data this uses
  * into .textlow and .lowdata sections.
  */
+#ifndef CONFIG_ATF_TO_LINUX
 __attribute__((section(".textlow")))
 void atf_exit_finish(void)
 {
@@ -228,6 +229,7 @@ void atf_exit_finish(void)
 
 /* defined in start.S */
 extern void atf_exit(void);
+#endif
 
 static inline void raw_write_daif(unsigned int daif)
 {

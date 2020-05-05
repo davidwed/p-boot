@@ -15,8 +15,6 @@
 - optimize bootfs creation tool to not overwrite the whole partition
   on each update
 
-- test/use CONFIG_ATF_TO_LINUX
-
 - audio / beep
   - signal boot issues via beeping on the loudspeaker
 

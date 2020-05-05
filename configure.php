@@ -434,6 +434,7 @@ $configs = [
 //	'CONFIG_MMC_VERBOSE',
 //	'CONFIG_MMC_TRACE',
 	'FDT_ASSUME_MASK=0xff',
+	'CONFIG_ATF_TO_LINUX',
 ];
 
 $cflags = [

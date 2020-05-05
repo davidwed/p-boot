@@ -54,9 +54,11 @@ _reset:
 	wfi
 	b 0b
 
+#ifndef CONFIG_ATF_TO_LINUX
 	.global atf_exit
 atf_exit:
         ldr     w0, =SRAM_STACK_A1-16
         bic     sp, x0, #0xf
         bl 	atf_exit_finish
 	b 	0b
+#endif
