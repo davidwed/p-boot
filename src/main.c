@@ -924,8 +924,10 @@ void main(void)
 			panic(26, "can't setup initrd\n");
 	}
 
-        fdt_fixup_wifi(fdt_blob);
-        fdt_fixup_bt(fdt_blob);
+	fdt_fixup_wifi(fdt_blob);
+
+	// PinePhone doesn't need BT local address fixup
+	//fdt_fixup_bt(fdt_blob);
 
 	// this also sets up reservation for FDT blob
 	err = fdt_shrink_to_minimum(fdt_blob, 0);
