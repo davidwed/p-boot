@@ -204,11 +204,6 @@ static bool mmc_read_data(struct mmc* mmc, uintptr_t dest,
 // {{{ ATF entry/exit helpers
 
 /*
- * Holds information passed to ATF about where to jump after ATF finishes.
- */
-static struct entry_point_info bl33_ep_info;
-
-/*
  * Return point that will be jumped to from ATF.
  *
  * ATF will clobber anything in SRAM A1 above 0x1000, so we need to put
@@ -240,24 +235,30 @@ static void jump_to_atf(void)
 {
 	void (*atf_entry_point)(struct entry_point_info *ep_info,
 				void *fdt_blob, uintptr_t magic);
+	/*
+	 * Holds information passed to ATF about where to jump after ATF
+	 * finishes.
+	 */
+	static struct entry_point_info* bl33_ep_info;
 
 	printf("%d us: jumping to ATF\n", timer_get_boot_us() - t0);
 
-        memset(&bl33_ep_info, 0, sizeof bl33_ep_info);
+	bl33_ep_info = malloc(sizeof *bl33_ep_info);
+	memset(bl33_ep_info, 0, sizeof *bl33_ep_info);
 
-        SET_PARAM_HEAD(&bl33_ep_info, ATF_PARAM_EP, ATF_VERSION_1,
-                       ATF_EP_NON_SECURE);
+	SET_PARAM_HEAD(bl33_ep_info, ATF_PARAM_EP, ATF_VERSION_1,
+		       ATF_EP_NON_SECURE);
 
 #ifdef CONFIG_ATF_TO_LINUX
         /* BL33 (Linux) expects to receive FDT blob through x0 */
-        bl33_ep_info.args.arg0 = FDT_BLOB_PA;
-        bl33_ep_info.pc = LINUX_IMAGE_PA;
-        bl33_ep_info.spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
-				    DISABLE_ALL_EXECPTIONS);
+	bl33_ep_info->args.arg0 = FDT_BLOB_PA;
+	bl33_ep_info->pc = LINUX_IMAGE_PA;
+	bl33_ep_info->spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
+				     DISABLE_ALL_EXECPTIONS);
 #else
-        bl33_ep_info.pc = (uintptr_t)atf_exit;
-        bl33_ep_info.spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
-				    DISABLE_ALL_EXECPTIONS);
+	bl33_ep_info->pc = (uintptr_t)atf_exit;
+	bl33_ep_info->spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
+				     DISABLE_ALL_EXECPTIONS);
 #endif
 
 	//disable_interrupts();
@@ -266,10 +267,10 @@ static void jump_to_atf(void)
 	dcache_disable();
 	invalidate_dcache_all();
 
-        raw_write_daif(SPSR_EXCEPTION_MASK);
+	raw_write_daif(SPSR_EXCEPTION_MASK);
 
 	atf_entry_point = (void*)(uintptr_t)ATF_PA;
-        atf_entry_point((void *)&bl33_ep_info, (void *)(uintptr_t)FDT_BLOB_PA, 0xb001);
+	atf_entry_point((void *)bl33_ep_info, (void *)(uintptr_t)FDT_BLOB_PA, 0xb001);
 
 	panic(6, "ATF entry failed\n");
 }
@@ -939,6 +940,8 @@ void main(void)
 	// mark end of p-boot by switching to red led
         green_led_set(0);
         red_led_set(1);
+
+	//panic(0, "done\n");
 
 	jump_to_atf();
 }
