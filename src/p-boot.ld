@@ -23,8 +23,8 @@ ENTRY(_start)
 
 MEMORY
 {
-    sram    (rwx) : ORIGIN = 0x10060,    LENGTH = 0x7fa0
-    sdram   (rwx) : ORIGIN = 0x4ff80000, LENGTH = 0x80000
+	sram : o = 0x10060,    l = 0x7fa0
+	dram : o = 0x40000000, l = 2048M
 }
 
 SECTIONS
@@ -42,27 +42,18 @@ SECTIONS
 		*(.text*)
 	} >sram
 
-	.rodata . : {
+	.data : {
 		. = ALIGN(8);
 		*(SORT_BY_ALIGNMENT(SORT_BY_NAME(.rodata*)))
-	} >sram
-
-	.data . : {
-		. = ALIGN(8);
 		*(.data*)
 	} >sram
 
-	.bss . : {
+	.bss : {
 		. = ALIGN(8);
 		*(.bss*)
 	} >sram
 
-	/DISCARD/ : { *(.comment*) }
-	/DISCARD/ : { *(.dynstr*) }
-	/DISCARD/ : { *(.dynamic*) }
-	/DISCARD/ : { *(.plt*) }
-	/DISCARD/ : { *(.interp*) }
-	/DISCARD/ : { *(.gnu*) }
-	/DISCARD/ : { *(.note*) }
-	/DISCARD/ : { *(.eh_frame*) }
+	/DISCARD/ : {
+		*(*)
+	}
 }
