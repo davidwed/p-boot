@@ -40,6 +40,8 @@
 #include "lradc.h"
 #include <build-ver.h>
 
+//#define CONFIG_DEVMODE
+
 // {{{ SRAM/DRAM layout
 
 /*
@@ -888,8 +890,13 @@ void panic_shutdown(uint32_t code)
         red_led_set(1);
         udelay(500000);
 
-        puts("Power off!\n");
-        pmic_poweroff();
+#ifdef CONFIG_DEVMODE
+	puts("Reset!\n");
+	soc_reset();
+#else
+	puts("Power off!\n");
+	pmic_poweroff();
+#endif
 }
 
 void main(void)
@@ -1054,7 +1061,10 @@ void main(void)
         green_led_set(0);
         red_led_set(1);
 
-	//panic(0, "done\n");
+#ifdef CONFIG_DEVMODE
+        puts("Reset!\n");
+	soc_reset();
+#endif
 
 	jump_to_atf();
 }
