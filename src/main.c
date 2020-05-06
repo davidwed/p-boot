@@ -803,6 +803,30 @@ static void fdt_fixup_bt(void* fdt)
                 printf("BT local MAC addr update failed err=%d\n", ret);
 }
 
+static char* fixup_bootargs(char* bootargs, bool is_sd)
+{
+	char *out, *end;
+	int len;
+
+	len = strlen(bootargs);
+	out = malloc(len + 1000);
+	memcpy(out, bootargs, len);
+	end = out + len;
+
+	memcpy(end, " bootdev=", 9);
+	end += 9;
+	if (is_sd) {
+		memcpy(end, "sd", 2);
+		end += 2;
+	} else {
+		memcpy(end, "emmc", 4);
+		end += 4;
+	}
+
+	*end = 0;
+	return out;
+}
+
 // }}}
 // {{{ RTC
 
@@ -906,6 +930,7 @@ void main(void)
 	printf("Boot Source: %x\n", get_boot_source());
 
 	uint64_t bootfs_offset = 0;
+	enum {SD, MMC} source = MMC;
 
 	// we always boot from eMMC, even when bootloader started from SD card
 	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
@@ -913,6 +938,7 @@ void main(void)
 	if (!mmc || !bootfs_locate(mmc, &bootfs_offset)) {
 		printf("BOOTFS not found on eMMC, trying SD card\n");
 		mmc = mmc_init_sd();
+		source = SD;
 
 		// read bootfs superblock and the config table
 		if (!mmc || !bootfs_locate(mmc, &bootfs_offset))
@@ -996,6 +1022,8 @@ void main(void)
         int chosen_off = fdt_find_or_add_subnode(fdt_blob, 0, "chosen");
         if (chosen_off < 0)
                 panic(23, "can't create /chosen node\n");
+
+	bootargs = fixup_bootargs(bootargs, source == SD);
 
 	err = fdt_setprop(fdt_blob, chosen_off, "bootargs",
 			  bootargs, strlen(bootargs) + 1);
