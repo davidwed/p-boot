@@ -1,0 +1,38 @@
+Using FEL to develop p-boot
+---------------------------
+
+You can use sunxi-fel tool from sunxi-tools to run p-boot over USB,
+without the need to flash it to SD/eMMC:
+
+  https://linux-sunxi.org/Sunxi-tools#sunxi-fel
+
+Get sunxi tools here:
+
+  git clone https://github.com/linux-sunxi/sunxi-tools
+
+
+I recommend to remove the existing bootloader so that PinePhone starts
+to FEL mode automatically:
+
+  dd if=/dev/zero of=/dev/mmcblk0 bs=1024 seek=8 count=2
+  dd if=/dev/zero of=/dev/mmcblk2 bs=1024 seek=8 count=2
+
+  (if you're using 8 KiB offset for bootloader)
+ 
+
+Then you can run:
+
+  sunxi-fel -v spl p-boot.bin
+
+to load the p-boot and start it.
+
+For an even better workflow, if you don't actually need to run Linux
+at the end, you can add soc_reset() just before jump_to_atf() and to
+panic_shutdown(). This way, you will be able to perform a very
+comfortable dev cycle of:
+
+  # hack on code
+  ninja
+  sunxi-fel -v spl p-boot.bin
+
+  ... repeat the above

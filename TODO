@@ -15,7 +15,4 @@
 
 - pass p-boot log somehow to the kernel (via fdt property? /bootlog?)
 
-- add HACKING file
-  - fel boot tips / development
-
-- FAT support
+- ext2 support
