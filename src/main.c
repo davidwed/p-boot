@@ -40,10 +40,6 @@
 #include "lradc.h"
 #include <build-ver.h>
 
-/* bootfs superblock offset from the start of SD/eMMC */
-#define BOOTFS_OFFSET_EMMC (1024 * 1024)
-#define BOOTFS_OFFSET_SD (4 * 1024 * 1024)
-
 // {{{ SRAM/DRAM layout
 
 /*
@@ -565,6 +561,26 @@ static void pmic_reboot_with_timer(void)
 // }}}
 // {{{ Bootfs helpers
 
+struct dos_partition {
+	uint8_t boot_ind;         /* 0x80 - active                        */
+	uint8_t head;             /* starting head                        */
+	uint8_t sector;           /* starting sector                      */
+	uint8_t cyl;              /* starting cylinder                    */
+	uint8_t sys_ind;          /* What partition type                  */
+	uint8_t end_head;         /* end head                             */
+	uint8_t end_sector;       /* end sector                           */
+	uint8_t end_cyl;          /* end cylinder                         */
+	uint32_t start;           /* starting sector counting from 0      */
+	uint32_t size;            /* nr of sectors in partition           */
+};
+
+struct part_info {
+	uint64_t start;
+	uint64_t size;
+	bool is_boot;
+	int idx;
+};
+
 static int bootsel;
 
 static bool bootfs_sb_valid(void)
@@ -572,6 +588,63 @@ static bool bootfs_sb_valid(void)
 	struct bootfs_sb* sb = (struct bootfs_sb*)(uintptr_t)BOOTFS_SB_PA;
 
 	return !memcmp(sb->magic, ":BOOTFS:", 8);
+}
+
+static bool bootfs_load(struct mmc* mmc, struct part_info* pi)
+{
+	printf("Trying %s partition located at 0x%llx(%llu MiB) (part %d)\n",
+			pi->is_boot ? "boot" : "normal",
+			pi->start, pi->size / 1024 / 1024, pi->idx);
+
+	return mmc_read_data(mmc, BOOTFS_SB_PA, pi->start, 33 * 2048) && bootfs_sb_valid();
+}
+
+static bool bootfs_locate(struct mmc* mmc, uint64_t* offset)
+{
+	int part_count = 0;
+	struct part_info* parts = malloc(4 * sizeof(*parts));
+
+	if (!mmc_read_data(mmc, BOOTFS_SB_PA, 0, 512))
+		return false;
+
+	uint8_t* buf = (uint8_t*)(uintptr_t)BOOTFS_SB_PA;
+	if (buf[0x1fe] != 0x55 || buf[0x1ff] != 0xaa)
+		return false;
+
+	struct dos_partition *p = (struct dos_partition *)&buf[0x1be];
+	for (int slot = 0; slot < 4; ++slot, ++p) {
+		if (p->boot_ind != 0 && p->boot_ind != 0x80)
+			return false;
+
+		if (p->sys_ind == 0x83) {
+			struct part_info* pi = &parts[part_count++];
+
+			pi->idx = slot;
+			pi->start = 512ull * __le32_to_cpu(p->start);
+			pi->size = 512ull * __le32_to_cpu(p->size);
+			pi->is_boot = p->boot_ind == 0x80;
+		}
+
+		//XXX: extended partitions are not supported yet
+		//if (p->sys_ind == 0x5 || p->sys_ind == 0xf || p->sys_ind == 0x85) {
+		//}
+	}
+
+	for (int i = 0; i < part_count; i++) {
+		if (parts[i].is_boot && bootfs_load(mmc, &parts[i])) {
+			*offset = parts[i].start;
+			return true;
+		}
+	}
+
+	for (int i = 0; i < part_count; i++) {
+		if (!parts[i].is_boot && bootfs_load(mmc, &parts[i])) {
+			*offset = parts[i].start;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 static struct bootfs_conf* bootfs_select_configuration(void)
@@ -832,19 +905,18 @@ void main(void)
 
 	printf("Boot Source: %x\n", get_boot_source());
 
+	uint64_t bootfs_offset = 0;
+
 	// we always boot from eMMC, even when bootloader started from SD card
 	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
 	mmc = mmc_init_emmc();
-
-	uint64_t bootfs_offset = BOOTFS_OFFSET_EMMC;
-	if (!mmc || !mmc_read_data(mmc, BOOTFS_SB_PA, bootfs_offset, 33 * 2048) || !bootfs_sb_valid()) {
+	if (!mmc || !bootfs_locate(mmc, &bootfs_offset)) {
 		printf("BOOTFS not found on eMMC, trying SD card\n");
 		mmc = mmc_init_sd();
 
-		bootfs_offset = BOOTFS_OFFSET_SD;
 		// read bootfs superblock and the config table
-		if (!mmc || !mmc_read_data(mmc, BOOTFS_SB_PA, bootfs_offset, 33 * 2048) || !bootfs_sb_valid())
-			panic(14, "BOOTFS not found on SD card");
+		if (!mmc || !bootfs_locate(mmc, &bootfs_offset))
+			panic(14, "BOOTFS not found on SD card\n");
 	}
 
 	struct bootfs_conf* sbc = bootfs_select_configuration();
