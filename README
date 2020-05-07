@@ -99,21 +99,17 @@ binary from dist/fw.bin (contains combined ATF and SCP binaries).
 Boot partition
 --------------
 
-p-boot doesn't understand partitions or filesystems, but it still needs to be
-able to somehow get ATF/SCP firmware, DTB, Linux image, and initramfs loaded
-into DRAM from somewhere.
+p-boot needs to find a specialized boot filesystem on one of the primary MBR
+partitions on eMMC or SD card (in that order). p-boot will only search
+partitions of type 0x83 (Linux) and it will give priority to partitions
+with a boot flag set.
 
-To achieve this, p-boot reads a boot configuration table from a fixed location
-on the eMMC or SD card and uses the information stored in the table to decide
-what to load next and how to boot the system. The table can contain multiple
-independent boot configurations.
+Boot partition contains a table of up to 33 boot configurations. Boot
+configuration is a specific set of ATF/SCP firmware, DTB, Linux, and initramfs
+images + Linux command line arguments (bootargs).
 
-That means that you'll need some unformatted space near the beginning of your
-boot block device that will store the configuration table and other data.
-You can partition your boot device in such a way so that there's a partition
-starting at 1MiB and extending as far as you'll need that will not contain
-any filesystem, but which will be used by `p-boot-conf` tool to store
-p-boot related data. You can find this tool pre-built in the dist/ folder.
+You can use p-boot-conf tool to create a boot filesystem. You can find this
+tool pre-built in the dist/ folder.
 
 This tool reads all files ending with '*.conf' from a configuration directory
 and writes data to the boot partition based on the content of these files.
@@ -148,7 +144,7 @@ configuration directory.
 After preparing the configuration files, and collecting the required binary files
 in the configuration directory, run:
 
-  p-boot-conf $confdir $blkdevice
+  p-boot-conf $conf_dir $boot_partition_blockk_device
 
 Once done, you can reboot the PinePhone to check that p-boot works.
 
@@ -156,15 +152,27 @@ Once done, you can reboot the PinePhone to check that p-boot works.
 Runtime behavior
 ----------------
 
-During powerup or reboot, p-boot will check the status of volume keys, and select
-an appropriate boot configuration:
+During powerup or reboot, p-boot will check several places in its decision
+making process for selecting the desired boot configuration:
 
-  VOLUME_UP - no=1
-  VOLUME_DOWN - no=0
-  nothing pressed - no=default
+- boot filesystem superblock (32bit BE value at 12 byte offset from the
+                              start of boot partition)
+- RTC data register (address 0x01f00100)
+- PMIC data register (address 0x04)
+- Status of the volume keys:
+  - VOLUME_UP - no=1
+  - VOLUME_DOWN - no=0
 
 Default value is stored in the boot filesystem's superblock. (at offset 12,
 4-byte BE value). The value is unchanged by p-boot-conf.
+
+Values in volatile registers are reset to 0 during boot if bit 7 of the value
+is set. If the register contains value 0, the value is ignored and doesn't
+affect boot configuration selection process. Values other than 0 are
+decremented by 1 and the result is used to select the boot configuration.
+For example register value 0x03 will select boot configuration 2. Register
+value 0x82 will select boot configuration 1 and the register will be
+reset to 0 during boot.
 
 
 Boot process of p-boot is as follows: (also see src/main.c)
@@ -174,26 +182,31 @@ Boot process of p-boot is as follows: (also see src/main.c)
 - init various A64 clocks
 - enable lradc (to get a sample from volume keys ADC, later on)
 - (optional) init debug UART
-- init DRAM
-- setup p-boot heap space for malloc() at 256MiB from end of DRAM
-- increase CPU clock speed to 816MHz
-- setup buses?
-- enable instruction cache
-- enable MMU/setup CPU data cache
 - init RSB connection to PMIC
-- (optional) print PMIC status
 - configure PMIC
+  - (optional) print PMIC status
   - shorten POK reaction time
-  - disable battery temperature sensor
   - increase VBUS current limit to 2A and enable charger detection
-  - enable LCD power early so that controller initializes before
-    kernel runs, and kernel LCD probe can avoid delays
-- initialize eMMC or SD controller, and:
-  - read 2kB * 33 from 1MiB offset (boot config table)
+  - increase CPU voltage to accommodate switch to 1.152GHz later on
+- init DRAM
+  - setup p-boot heap space for malloc() at 256MiB from end of DRAM
+  - enable instruction cache
+  - enable MMU/setup CPU data cache
+- setup SoC buses
+- enable LCD power early so that controller initializes before
+  kernel runs, and kernel LCD probe can avoid delays
+- disable battery temperature sensor
+- program the battery OCV curve for better capacity reporting
+- increase CPU clock speed to 1152MHz
+- initialize eMMC
+  - search for boot partition and load bootfs superblock/conf table
+  - if not found repeat the same process on the SD card
+- select configuration from the boot table
   - read default boot config selection index from the table
+  - apply value from the RTC register
+  - apply value from the PMIC register
   - if VOLUME_UP is pressed, force bootsel index = 1
   - if VOLUME_DOWN is pressed, force bootsel index = 0
-  - otherwise use the default stored in the table
   - go through the table and load images from the table to:
     - Linux image to 0x40080000
     - initramfs to 0x4fe00000
@@ -201,10 +214,36 @@ Boot process of p-boot is as follows: (also see src/main.c)
     - ATF+SCP to 0x44000
 - check validity of FDT blob, and in FDT:
   - set /chosen/bootargs to kernel command line
+    - append bootdev=emmc or bootdev=sd based on the source of the bootfs
+  - calculate MAC address for WiFi from SoC ID and patch it to FDT
   - add DRAM address/size info
   - add initramfs info
 - turn off green and turn on red LED
 - jump to ATF
   - ATF jumps to Linux image while switching to EL2
-  - or after return from ATF, jump to Linux image while switching to EL2
-    (ATF v2.3+ overwrites SRAM A1, causing SPL corruption)
+  - (alternatively) after return from ATF, jump to Linux image while switching to EL2
+
+
+Debugging
+---------
+
+p-boot will try to fail gracefully in the event of boot failure. This means
+that it will try its best to power down the SoC. p-boot also enables the red
+LED as early as possible so that the user is informed in case the boot process
+hangs that the device is on and drawing power from the battery.
+
+In case of a bootloader panic, p-boot will first blink the red led quickly for
+a second and then you'll see 5 flashes of the green LED followed by device poweroff.
+The 5 green flashes represent a 5-bit binary number in MSB first bit order.
+Long flash represents 1 and short flash represents 0.
+
+You can use this to get the reason for boot failure without the need to pull
+out the serial cable. Simply translate the binary number to decimal and search
+p-boot code for the panic call with this number. For example, if you get
+a flash pattern ". - . - ." -> 0b01010 -> 10:
+
+  grep -R 'panic(10' src
+
+src/main.c:		panic(10, "BOOTFS not found");
+
+That is bootfs was not found. :)
