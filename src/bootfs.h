@@ -19,26 +19,29 @@
 
 #pragma once
 
+#include <stdint.h>
+
 // all values are BE
 
 // takes 512B
 struct bootfs_sb {
-	char magic[8]; // :BOOTFS:
-	unsigned int version; // 1
-	unsigned int default_conf;
+	uint8_t magic[8]; // :BOOTFS:
+	uint32_t version; // 1
+	uint32_t default_conf;
 };
 
 struct bootfs_image {
-	unsigned int type; // 'L' Linux, 'A' ATF 'I' Initramfs 'D' DTB
-	unsigned int data_off; // aligned to sector (512B)
-	unsigned int data_len; // unaligned, bootloader must align
+	uint32_t type; // 'L' Linux, 'A' ATF 'I' Initramfs 'D' DTB
+	uint32_t data_off; // aligned to sector (512B)
+	uint32_t data_len; // unaligned, bootloader must align
 };
 
 // takes 2048B
 struct bootfs_conf {
-	char magic[8]; // :BFCONF:
+	uint8_t magic[8]; // :BFCONF:
 	struct bootfs_image images[8]; // type=0 == unused entry
-	char boot_args[2048 - 8 - 8*4*3]; // null terminated string
+	uint8_t boot_args[2048 - 8 - 8 * sizeof(struct bootfs_image) - 96]; // null terminated string
+	uint8_t name[96];
 };
 
 // layout

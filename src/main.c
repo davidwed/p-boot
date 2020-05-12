@@ -706,8 +706,8 @@ static struct bootfs_conf* bootfs_select_configuration(void)
 		panic(12, "Nothing to boot\n");
 	}
 
-	printf("%d us: Booting configuration %d\n",
-	       timer_get_boot_us() - t0, bootsel);
+	printf("%d us: Booting configuration %d (%s)\n",
+	       timer_get_boot_us() - t0, bootsel, (char*)bc[bootsel].name);
 
 	return &bc[bootsel];
 }
@@ -957,7 +957,7 @@ void main(void)
 	// read the images from the selected table entry to memory
 	ulong initramfs_start = 0, initramfs_end = 0;
 	bool has_atf = false, has_linux = false;
-	char* bootargs = sbc->boot_args;
+	char* bootargs = (char*)sbc->boot_args;
 	void* fdt_blob = NULL;
 
 	for (int j = 0; j < sizeof(sbc->images) / sizeof(sbc->images[0]); j++) {

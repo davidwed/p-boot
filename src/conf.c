@@ -47,6 +47,7 @@ struct bconf {
 	int used;
 	int index;
 	char path[1024];
+	char name[1024];
 
 	// image file fds
 	int linuximg;
@@ -128,6 +129,10 @@ bool parse_conf(struct bconf* c, const char* conf_dir)
 
 			if (!strcmp(line, "bootargs")) {
 				snprintf(c->bootargs, sizeof c->bootargs, "%s", val);
+			}
+
+			if (!strcmp(line, "name")) {
+				snprintf(c->name, sizeof c->name, "%s", val);
 			}
 		}
 	}
@@ -273,6 +278,7 @@ int main(int ac, char* av[])
 			};
 
 			printf("Writing boot configuration %d (%s)\n", confs[i].index, confs[i].path);
+			printf("  %-8s %s\n", "Name:", confs[i].name);
 
 #define WRITE_IMG(n, t, desc) \
 			if (confs[i].n >= 0) { \
@@ -295,6 +301,7 @@ int main(int ac, char* av[])
 			WRITE_IMG(initramfs, 'I', "Initrd:")
 
 			snprintf(bc.boot_args, sizeof bc.boot_args, "%s", confs[i].bootargs);
+			snprintf(bc.name, sizeof bc.name, "%s", confs[i].name);
 
 			lseek_checked(fd, off_c);
 			write_checked(fd, &bc, sizeof bc);
