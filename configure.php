@@ -596,16 +596,6 @@ function p_boot_norm_lto($conf)
 }
 
 p_boot_norm_lto([
-	'name' => 'p-boot-debug',
-	'cflags' => [
-		'$pboot_cflags',
-		'-DSERIAL_CONSOLE',
-		'-DDEBUG',
-	],
-	'ldflags' => ['$pboot_ldflags'],
-]);
-
-p_boot_norm_lto([
 	'name' => 'p-boot',
 	'cflags' => [
 		'$pboot_cflags',

@@ -57,7 +57,6 @@ Building
 3) As a result you'll get a bunch of p-boot*.bin variants in .build/ dir
    (in the order of decresing serial output verbosity):
 
-  p-boot-debug.bin  (will produce very verbose output, that will slow down the boot)
   p-boot.bin  (will produce some basic output and critical messages)
   p-boot-silent.bin  (will not even initialize the serial console)
 
