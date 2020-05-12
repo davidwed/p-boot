@@ -539,6 +539,7 @@ function p_boot($conf) {
 			'$ubootdir/arch/arm/mach-sunxi/dram_helpers.c',
 			'$ubootdir/arch/arm/mach-sunxi/dram_sunxi_dw.c',
 			'$ubootdir/arch/arm/mach-sunxi/pinmux.c',
+			'$ubootdir/arch/arm/mach-sunxi/prcm.c',
 			'$ubootdir/arch/arm/mach-sunxi/dram_timings/lpddr3_stock.c',
 			'$ubootdir/lib/libfdt/fdt.c',
 			'$ubootdir/lib/libfdt/fdt_addresses.c',

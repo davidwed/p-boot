@@ -31,6 +31,7 @@
 #include <asm/arch/mmc.h>
 #include <asm/arch/clock.h>
 #include <asm/arch/spl.h>
+#include <asm/arch/prcm.h>
 #include <atf_common.h>
 #include <mmc.h>
 #include "debug.h"
@@ -381,7 +382,6 @@ static bool get_mac_address(unsigned no, uint8_t mac_addr[6])
 	mac_addr[5] = (sid[3] >>  0) & 0xff;
 
 	return true;
-
 }
 
 #define SUNXI_BOOTED_FROM_FEL 0xff
@@ -861,6 +861,30 @@ static void soc_reset(void)
 
         udelay(1000000);
         panic(13, "SoC reset failed");
+}
+
+// }}}
+// {{{ Detect PinePhone hardware
+
+static int detect_pinephone_revision(void)
+{
+	int ret = 1;
+
+	prcm_apb0_enable(PRCM_APB0_GATE_PIO);
+	sunxi_gpio_set_pull(SUNXI_GPL(6), SUNXI_GPIO_PULL_UP);
+	sunxi_gpio_set_cfgpin(SUNXI_GPL(6), SUNXI_GPIO_INPUT);
+
+	udelay(100);
+
+	/* PL6 is pulled low by the modem on v1.2. */
+	if (!gpio_get_value(SUNXI_GPL(6)))
+		ret = 2;
+
+	sunxi_gpio_set_cfgpin(SUNXI_GPL(6), SUNXI_GPIO_DISABLE);
+	sunxi_gpio_set_pull(SUNXI_GPL(6), SUNXI_GPIO_PULL_DISABLE);
+	prcm_apb0_disable(PRCM_APB0_GATE_PIO);
+
+	return ret;
 }
 
 // }}}
