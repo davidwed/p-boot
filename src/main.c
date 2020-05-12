@@ -926,6 +926,7 @@ void panic_shutdown(uint32_t code)
 void main(void)
 {
 	struct mmc* mmc;
+	int board_rev;
 
 	t0 = timer_get_boot_us();
 
@@ -933,6 +934,8 @@ void main(void)
 	clock_init_safe();
 	lradc_enable();
 	debug_init();
+
+	board_rev = detect_pinephone_revision();
 
 	puts("\np-boot (version " VERSION " built " BUILD_DATE ")\n");
 
@@ -945,7 +948,7 @@ void main(void)
 
 	uint32_t sid[4];
 	get_soc_id(sid);
-	printf("SoC ID: %08x:%08x:%08x:%08x\n", sid[0], sid[1], sid[2], sid[3]);
+	printf("SoC ID: %08x:%08x:%08x:%08x\nBoard rev: 1.%d\n", sid[0], sid[1], sid[2], sid[3], board_rev);
 
         rtc_fixup();
 
