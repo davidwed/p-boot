@@ -72,70 +72,143 @@ bool str_ends_with(const char* s, const char* ext)
 	return !strcmp(s + (len - ext_len), ext);
 }
 
-bool parse_conf(struct bconf* c, const char* conf_dir)
+void complete_conf(struct bconf* c)
 {
-	FILE* f = fopen(c->path, "r");
+	if (confs[c->index].used) {
+		printf("ERROR: %s: Configuration slot no=%d is already taken by '%s'\n", c->path, c->index, confs[c->index].path);
+		exit(1);
+	}
+
+	if (c->atf < 0) {
+		printf("ERROR: %s: Configuration slot no=%d is missing 'atf' image\n", c->path, c->index);
+		exit(1);
+	}
+
+	if (c->linuximg < 0) {
+		printf("ERROR: %s: Configuration slot no=%d is missing 'linux' image\n", c->path, c->index);
+		exit(1);
+	}
+
+	if (c->dtb < 0) {
+		printf("ERROR: %s: Configuration slot no=%d is missing 'dtb' image\n", c->path, c->index);
+		exit(1);
+	}
+
+	c->used = 1;
+	confs[c->index] = *c;
+}
+
+bool parse_conf(const char* conf_dir, const char* conf_filename)
+{
+	struct bconf conf_tpl = {
+		.linuximg = -1,
+		.atf = -1,
+		.dtb = -1,
+		.initramfs = -1,
+	};
+
+	snprintf(conf_tpl.path, sizeof conf_tpl.path, "%s/%s", conf_dir, conf_filename);
+
+	FILE* f = fopen(conf_tpl.path, "r");
 	if (!f) {
-		printf("ERROR: can't open %s", c->path);
+		printf("ERROR: can't open %s", conf_tpl.path);
 		exit(1);
 	}
 
 	char line[4096];
+	struct bconf conf = conf_tpl;
+	bool conf_started = false;
+	int line_no = 0;
 
 	while (fgets(line, sizeof line, f)) {
-		int len = strlen(line);
-		if (line[len - 1] == '\n')
-			line[len - 1] = 0;
+		char* end = line + strlen(line);
+		while (--end >= line && *end == ' ' || *end == '\t' || *end == '\n')
+			*end = 0;
+                char* name = line;
+                line_no++;
 
-//		printf("parsing: %s %s\n", c->path, line);
+		while (*name == ' ' || *name == '\t')
+			name++;
 
-		char* val = strchr(line, '=');
+		if (*name == '#')
+			continue;
+		if (*name == '\0')
+			continue;
+
+		char* eq = strchr(name, '=');
+		if (!eq) {
+			printf("WARNING: %s[%d]: Skipping invalid line (%s)", conf.path, line_no, line);
+			continue;
+		}
+
+		char* val = eq + 1;
+
+		// trim name from the end
+		do {
+			*eq-- = 0;
+		} while (eq >= name && (*eq == ' ' || *eq == '\t'));
+
+		// trim value from the start
+		while (*val == ' ' || *val == '\t')
+			val++;
+
 		if (val) {
-			*val++ = 0;
-
 			// got a reasonably valid line
-			if (!strcmp(line, "no")) {
-				c->index = atoi(val);
-				if (c->index < 0 || c->index >= 32) {
-					printf("ERROR: invalid no=%d in %s\n", c->index, c->path);
+			if (!strcmp(name, "no")) {
+				if (conf_started)
+					complete_conf(&conf);
+
+				conf = conf_tpl;
+				conf.index = atoi(val);
+				if (conf.index < 0 || conf.index >= 32) {
+					printf("ERROR: %s[%d]: no out of range (is %d, must be 0-32)", conf.path, line_no, conf.index);
 					exit(1);
 				}
+
+				conf_started = true;
+				continue;
 			}
 
-			if (!strcmp(line, "linux") || !strcmp(line, "initramfs") || !strcmp(line, "atf") || !strcmp(line, "dtb")) {
+			if (!conf_started) {
+				printf("ERROR: %s[%d]: Config has to start with no=[idx]", conf.path, line_no);
+				exit(1);
+			}
+
+			if (!strcmp(name, "linux") || !strcmp(name, "initramfs") || !strcmp(name, "atf") || !strcmp(name, "dtb")) {
 				char path[1024];
 				snprintf(path, sizeof path, "%s/%s", conf_dir, val);
 
 				int fd = open(path, O_RDONLY);
 				if (fd < 0) {
-					printf("ERROR: can't open %s=%s in %s\n", line, val, c->path);
+					printf("ERROR: %s[%d]: Can't open image file '%s' for '%s'", conf.path, line_no, val, name);
 					exit(1);
 				}
 
-				if (!strcmp(line, "linux")) {
-					c->linuximg = fd;
-					realpath(path, c->linuximg_path);
-				} else if (!strcmp(line, "initramfs")) {
-					c->initramfs = fd;
-					realpath(path, c->initramfs_path);
-				} else if (!strcmp(line, "atf")) {
-					c->atf = fd;
-					realpath(path, c->atf_path);
-				} else if (!strcmp(line, "dtb")) {
-					c->dtb = fd;
-					realpath(path, c->dtb_path);
+				if (!strcmp(name, "linux")) {
+					conf.linuximg = fd;
+					realpath(path, conf.linuximg_path);
+				} else if (!strcmp(name, "initramfs")) {
+					conf.initramfs = fd;
+					realpath(path, conf.initramfs_path);
+				} else if (!strcmp(name, "atf")) {
+					conf.atf = fd;
+					realpath(path, conf.atf_path);
+				} else if (!strcmp(name, "dtb")) {
+					conf.dtb = fd;
+					realpath(path, conf.dtb_path);
 				}
 			}
 
-			if (!strcmp(line, "bootargs")) {
-				snprintf(c->bootargs, sizeof c->bootargs, "%s", val);
-			}
+			if (!strcmp(name, "bootargs"))
+				snprintf(conf.bootargs, sizeof conf.bootargs, "%s", val);
 
-			if (!strcmp(line, "name")) {
-				snprintf(c->name, sizeof c->name, "%s", val);
-			}
+			if (!strcmp(name, "name"))
+				snprintf(conf.name, sizeof conf.name, "%s", val);
 		}
 	}
+
+	if (conf_started)
+		complete_conf(&conf);
 
 	fclose(f);
 	return true;
@@ -199,20 +272,10 @@ int main(int ac, char* av[])
 	conf_dir = av[1];
 	blk_dev = av[2];
 
+	/* read *.conf files from config directory into confs[] */
 	DIR* d = opendir(conf_dir);
 	if (!d)
 		usage("conf directory is not a directory");
-
-	char path[1024];
-	snprintf(path, sizeof path, "%s/%s", conf_dir, "bl31.bin");
-	int atf_fd = open(path, O_RDONLY);
-
-	for (int i = 0; i < 32; i++) {
-		confs[i].linuximg = -1;
-		confs[i].atf = -1;
-		confs[i].dtb = -1;
-		confs[i].initramfs = -1;
-	}
 
 	struct dirent *e;
 	while (1) {
@@ -227,33 +290,14 @@ int main(int ac, char* av[])
 			break;
 		}
 
-		if (str_ends_with(e->d_name, ".conf")) {
-			struct bconf conf = {
-				.linuximg = -1,
-				.atf = atf_fd,
-				.dtb = -1,
-				.initramfs = -1,
-			};
-			snprintf(conf.path, sizeof conf.path, "%s/%s", conf_dir, e->d_name);
-
-			if (atf_fd >= 0)
-				realpath(path, conf.atf_path);
-
-			parse_conf(&conf, conf_dir);
-
-			if (confs[conf.index].used) {
-				printf("ERROR: configuration slot %d is already taken by %s\n", conf.index, confs[conf.index].path);
-				exit(1);
-			}
-
-			conf.used = 1;
-			confs[conf.index] = conf;
-		}
+		if (str_ends_with(e->d_name, ".conf"))
+			parse_conf(conf_dir, e->d_name);
 	}
 
 	closedir(d);
 
-	int fd = open(blk_dev, O_RDWR/* | O_CREAT | O_TRUNC*/, 0666);
+	/* open bootfs partition block device */
+	int fd = open(blk_dev, O_RDWR | O_CREAT | O_TRUNC, 0666);
 	if (fd < 0) {
 		perror("can't open block device\n");
 		exit(1);
