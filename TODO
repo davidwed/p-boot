@@ -4,17 +4,15 @@
   - reset SoC with a flag in RTC data register to signal p-boot to
     perform poweroff right after pmic_init (also avoid reset loop)
 
+- allow to override RTC based boot selection once, while restoring
+  the previous RTC value (not resetting as now)
+
 - read i2c proximity sensor
   - abort boot and poweroff if pressing the power button
     when the proximity sensor is covered (phone in the bag,
     pocket, etc.)
 
 - detect 1.0/1.1 vs 1.2 hardware and load appropriate DTB
-
-- allow to override RTC based boot selection once, while restoring
-  the previous RTC value (not resetting as now)
-
-- pass p-boot log somehow to the kernel (via fdt property? /bootlog?)
 
 
 2.0: (est. July 2020)
