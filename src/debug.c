@@ -142,7 +142,7 @@ __attribute__((section(".textlow")))
 void put_hex(unsigned long long hex, int align, int pad0)
 {
 	int i;
-	int skip_nibbles = __builtin_clzll(hex) / 4;
+	int skip_nibbles = hex > 0 ? __builtin_clzll(hex) / 4 : 15;
 
 	for (i = 0; i < align - (16 - skip_nibbles); i++)
 		putc(pad0 ? '0' : ' ');
