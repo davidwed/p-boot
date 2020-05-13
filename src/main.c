@@ -316,6 +316,20 @@ static void dram_speed_test(unsigned int mb)
 #endif
 }
 
+#ifdef PBOOT_FDT_LOG
+
+// place log in SRAM C until DRAM is ready
+static char* log_end = (char*)(uintptr_t)0x00018000;
+static char* log_start = (char*)(uintptr_t)0x00018000;
+
+void append_log(char c)
+{
+	if (c != '\r')
+		*log_end++ = c;
+}
+
+#endif
+
 static void dram_init(void)
 {
 	dram_size = sunxi_dram_init();
@@ -324,6 +338,15 @@ static void dram_init(void)
 
 	// 256MiB from end of DRAM is our heap
 	heap_end = (void*)(CONFIG_SYS_SDRAM_BASE + dram_size - 1024*1024*256);
+
+#ifdef PBOOT_FDT_LOG
+	// allocate 128 KiB for the log and move it to DRAM from SRAM C
+	char* new_log = malloc(128 * 1024);
+	unsigned log_size = log_end - log_start;
+	memcpy(new_log, log_start, log_size);
+	log_end = log_start = new_log;
+	log_end += log_size;
+#endif
 
 	icache_enable();
 	mmu_setup(dram_size);
@@ -829,6 +852,18 @@ static char* fixup_bootargs(char* bootargs, bool is_sd)
 	return out;
 }
 
+static void fdt_add_pboot_data(void* fdt_blob)
+{
+        int pboot_off = fdt_find_or_add_subnode(fdt_blob, 0, "p-boot");
+        if (pboot_off < 0)
+		return;
+
+#ifdef PBOOT_FDT_LOG
+	fdt_setprop(fdt_blob, pboot_off, "log",
+		    log_start, log_end - log_start);
+#endif
+}
+
 // }}}
 // {{{ RTC
 
@@ -933,11 +968,11 @@ void main(void)
 	green_led_set(1);
 	clock_init_safe();
 	lradc_enable();
-	debug_init();
+	console_init();
 
 	board_rev = detect_pinephone_revision();
 
-	puts("\np-boot (version " VERSION " built " BUILD_DATE ")\n");
+	puts("p-boot (version " VERSION " built " BUILD_DATE ")\n");
 
         // init PMIC first so that panic_shutdown() can power off the board
         // in case of panic()
@@ -1049,7 +1084,7 @@ void main(void)
         if (model)
                 printf("Model: %s\n", model);
 
-	err = fdt_increase_size(fdt_blob, 1024*32); // generous
+	err = fdt_increase_size(fdt_blob, 1024*128); // generous
         if (err < 0)
                 panic(22, "can't expand FDT: %s\n", fdt_strerror(err));
 
@@ -1075,6 +1110,7 @@ void main(void)
 	}
 
 	fdt_fixup_wifi(fdt_blob);
+	fdt_add_pboot_data(fdt_blob);
 
 	// PinePhone doesn't need BT local address fixup
 	//fdt_fixup_bt(fdt_blob);

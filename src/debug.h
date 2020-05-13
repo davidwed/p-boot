@@ -19,9 +19,8 @@
 
 #pragma once
 
-#ifdef SERIAL_CONSOLE
+#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG)
 
-void debug_init(void);
 void putc(char c);
 void puts(const char* s);
 void printf(const char* fmt, ...);
@@ -29,12 +28,21 @@ void put_hex(unsigned long long value, int align, int pad0);
 
 #else
 
-static inline void debug_init(void) { }
 static inline void putc(char c) { }
 static inline void puts(const char* s) { }
 static inline void printf(const char* fmt, ...) { }
 static inline void put_hex(unsigned long long value, int align, int pad0) { }
 
+#endif
+
+#ifdef PBOOT_FDT_LOG
+void append_log(char c);
+#endif
+
+#ifdef SERIAL_CONSOLE
+void console_init(void);
+#else
+static inline void console_init(void) { }
 #endif
 
 #ifdef DEBUG

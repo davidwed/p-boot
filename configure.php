@@ -599,7 +599,8 @@ p_boot_norm_lto([
 	'name' => 'p-boot',
 	'cflags' => [
 		'$pboot_cflags',
-		 '-DSERIAL_CONSOLE'
+		 '-DSERIAL_CONSOLE',
+		 '-DPBOOT_FDT_LOG',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
