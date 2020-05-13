@@ -854,9 +854,38 @@ static char* fixup_bootargs(char* bootargs, bool is_sd)
 
 static void fdt_add_pboot_data(void* fdt_blob)
 {
+	struct bootfs_conf* bc = (struct bootfs_conf*)(uintptr_t)(BOOTFS_SB_PA + 2048);
+	char* configs = malloc(32 * 256);
+	char* p = configs;
+
+	for (int i = 0; i < 32; i++) {
+		struct bootfs_conf* c = &bc[i];
+
+		if (!memcmp(c->magic, ":BFCONF:", 8)) {
+			int dig1 = i / 10;
+			int dig2 = i % 10;
+
+			// write out boot conf index
+			if (dig1)
+				*p++ = '0' + dig1;
+			*p++ = '0' + dig2;
+
+			// separator
+			*p++ = ':';
+
+			// boot config name
+			for (int j = 0; j < sizeof(c->name) && c->name[j]; j++)
+				*p++ = c->name[j];
+			*p++ = '\n';
+		}
+	}
+
         int pboot_off = fdt_find_or_add_subnode(fdt_blob, 0, "p-boot");
         if (pboot_off < 0)
 		return;
+
+	fdt_setprop(fdt_blob, pboot_off, "configs",
+		    configs, p - configs);
 
 #ifdef PBOOT_FDT_LOG
 	fdt_setprop(fdt_blob, pboot_off, "log",
