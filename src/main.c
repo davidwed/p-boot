@@ -208,10 +208,10 @@ static bool mmc_read_data(struct mmc* mmc, uintptr_t dest,
  *
  * ATF will clobber anything in SRAM A1 above 0x1000, so we need to put
  * this function, all functions this calls, and all static data this uses
- * into .textlow and .lowdata sections.
+ * into .lowtext and .lowdata sections.
  */
 #ifndef CONFIG_ATF_TO_LINUX
-__attribute__((section(".textlow")))
+__attribute__((section(".lowtext")))
 void atf_exit_finish(void)
 {
 	printf("%d us: ATF done, booting Linux...\n", timer_get_boot_us() - t0);

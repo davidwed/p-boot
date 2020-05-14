@@ -35,7 +35,7 @@ SECTIONS
 
 		/* We put code/data necessary for jump to Linux in the first 1KiB,
 		 * because 1KiB+ is clobbered by ATF NOBITS. */
-		*(.textlow)
+		*(.lowtext)
 		*(.lowdata)
 
 		. = ALIGN(8);
