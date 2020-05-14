@@ -135,9 +135,6 @@ static void put_uint_div_by_1000(unsigned int value)
 	put_uint(value % 1000, 0, 0);
 }
 
-__attribute__((section(".lowdata")))
-static char hexstr[] = "0123456789abcdef";
-
 __attribute__((section(".lowtext")))
 void put_hex(unsigned long long hex, int align, int pad0)
 {
@@ -150,7 +147,10 @@ void put_hex(unsigned long long hex, int align, int pad0)
 	for (i = skip_nibbles; i < 16; i++) {
 		unsigned nibble = (hex >> (4 * (15 - i))) & 0xf;
 
-		putc(hexstr[nibble]);
+		if (nibble < 10)
+			putc('0' + nibble);
+		else
+			putc('a' + (nibble - 10));
 	}
 }
 
