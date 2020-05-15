@@ -490,6 +490,7 @@ $cflags = [
 	'-g0',
 	'-ffunction-sections',
 	'-fdata-sections',
+	'-mcmodel=tiny',
 	//'-fstack-usage',
 	//'-fmacro-prefix-map=/workspace/megous.com/orangepi-pc/u-boot-v2020.01/=',
 	//'-fomit-frame-pointer',
