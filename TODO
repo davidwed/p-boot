@@ -1,5 +1,13 @@
 1.0: (est. mid to late May 2020)
 
+- make a memory tuning/testing SPL program
+  - find the stable DRAM frequency quickly (when running from SRAM
+    we can do a quick reconfigurations of DRAM and perform automated
+    testing/optimization)
+
+- ext2 support (will probably be slower than bootfs)
+  - parse config from a *.conf file
+
 - make poweroff on panic more robust
   - reset SoC with a flag in RTC data register to signal p-boot to
     perform poweroff right after pmic_init (also avoid reset loop)
@@ -7,20 +15,15 @@
 - allow to override RTC based boot selection once, while restoring
   the previous RTC value (not resetting as now)
 
+- detect 1.0/1.1 vs 1.2 hardware and load appropriate DTB
+
+
+X.X: (est. ????)
+
 - read i2c proximity sensor
   - abort boot and poweroff if pressing the power button
     when the proximity sensor is covered (phone in the bag,
     pocket, etc.)
-
-- detect 1.0/1.1 vs 1.2 hardware and load appropriate DTB
-
-
-2.0: (est. July 2020)
-
-- fat support (will probably be slower than bootfs)
-
-
-X.X: (est. ????)
 
 - optimize bootfs creation tool to not overwrite the whole partition
   on each update
@@ -28,3 +31,4 @@ X.X: (est. ????)
 - audio / beep
   - signal boot issues via beeping on the loudspeaker
 
+- display/touch support
