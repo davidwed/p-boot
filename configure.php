@@ -616,6 +616,16 @@ p_boot_norm_lto([
 ]);
 
 p_boot_norm_lto([
+	'name' => 'p-boot-fdtlog',
+	'main' => '$srcdir/main.c',
+	'cflags' => [
+		'$pboot_cflags',
+		 '-DPBOOT_FDT_LOG',
+	],
+	'ldflags' => ['$pboot_ldflags'],
+]);
+
+p_boot_norm_lto([
 	'name' => 'p-boot-silent',
 	'main' => '$srcdir/main.c',
 	'cflags' => [
