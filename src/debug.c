@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG)
-
 #include <common.h>
 #include <asm/io.h>
 #include <asm/arch/gpio.h>
@@ -44,7 +42,6 @@
 #define LC_8_N_1	(NO_PARITY << 3 | ONE_STOP_BIT << 2 | DAT_LEN_8_BITS)
 #define TX_READY	(readl(UART0_LSR) & BIT(6))
 
-#ifdef SERIAL_CONSOLE
 void console_init(void)
 {
 	clock_init_uart();
@@ -62,7 +59,8 @@ void console_init(void)
 	/* set line control */
 	writel(LC_8_N_1, UART0_LCR);
 }
-#endif
+
+#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG)
 
 __attribute__((section(".lowtext")))
 void putc(char c)

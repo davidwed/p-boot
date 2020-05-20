@@ -39,11 +39,7 @@ static inline void put_hex(unsigned long long value, int align, int pad0) { }
 void append_log(char c);
 #endif
 
-#ifdef SERIAL_CONSOLE
 void console_init(void);
-#else
-static inline void console_init(void) { }
-#endif
 
 #ifdef DEBUG
 
