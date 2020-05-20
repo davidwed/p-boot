@@ -6,27 +6,40 @@ of PinePhone. p-boot is partly based on some borrowed U-Boot code.
 
 Some benefits over U-Boot:
 
-- Speed (50-100ms boot times + load times for images)
+- It's very fast (30-60ms boot times + load times for images)
   - Uses MMC DMA, eMMC DDR, and CPU data cache
   - Only minimal necessary boot steps are performed in the most straightforward manner
-- Single DT blob used by p-boot, ATF and Linux (no U-Boot specific DT blob needed)
-- Has access to PMIC over RSB (p-boot can access and configure the PMIC)
-  - Easy to select alternate boot configuration in case of low battery charge level
-  - Will power down the device in case of boot failure, instead of silently
-    draining the battery
-- Boot status indication via LED
-  - Bootloader failure indicated by a binary blinking pattern (serial port not
-    needed for quick debugging)
-- Multiple boot configurations
-- Ability to load bootloader from SD card, but read boot data from eMMC (which
-  allows 85MiB/s image load speeds and avoids 1s LED flash activation and 1s boot
-  delay waiting for BROM to load bootlader from eMMC)
-- Boot configuration selection via volume keys pressed during boot
-  (up to 3 different boot configurations)
-  - Allow for default boot config override via RTC data register (you can reboot
+- It's fail safe and easily debuggable
+  - It will power down the device in case of bootloader stage boot failure,
+    instead of silently draining the battery
+  - Boot status is indicated via LED
+    - green  = in bootloader
+    - red    = just before passing control to ATF/Linux
+    - no led = powered off
+  - Bootloader failure is indicated by a 5-bit binary blinking pattern
+    (serial port not needed for quick debugging)
+  - Bootloader log is stored to DTB, and is visible from Linux via
+    `/sys/firmware/devicetree/base/p-boot/log` file
+  - Boot log can be printed to the serial port (this will slow down boot)
+- It has flexible boot source options
+  - Supports multiple boot configurations on SD and eMMC
+  - Ability to load bootloader from SD card, but read boot data from eMMC (which
+    allows 85MiB/s image load speeds and avoids 1s LED flash activation and 1s boot
+    delay waiting for BROM to load bootlader from eMMC)
+  - List of available boot configurations is passed to Linux via
+    `/sys/firmware/devicetree/base/p-boot/configs` file, so it's easy to make
+    a Linux based boot menu.
+  - Boot configuration selection via volume keys pressed during boot
+    (up to 3 different boot configurations)
+  - Allow for default boot config override via a RTC data register (you can reboot
     from one OS to another without user intervention)
   - Support for one time reboot to other OS, or "persistent" change to other
     boot configuration
+- It has access to PMIC over RSB (p-boot can access and configure the PMIC)
+  - Easy to select alternate boot configuration in case of low battery charge level
+  - p-boot configures the PMIC and can react to various boot reasons indicated
+    by PMIC
+- Single DT blob used by p-boot, ATF and Linux (no U-Boot specific DT blob needed)
 - Configure a stable WiFi MAC address in FDT based on SoC ID
 - A lot of free space for extensions (p-boot size limit is 32KiB, current
   p-boot size is 20KiB)
@@ -54,13 +67,9 @@ Building
   php configure.php
   ninja
 
-3) As a result you'll get a bunch of p-boot*.bin variants in .build/ dir
-   (in the order of decresing serial output verbosity):
-
-  p-boot.bin  (will produce some basic output and critical messages)
-  p-boot-silent.bin  (will not even initialize the serial console)
-
-  The build also produces LTO compiled variants with a '-lto' suffix.
+3) As a result you'll get a bunch of p-boot*.bin variants in .build/ dir,
+   named p-boot*.bin. See "Variants" section bellow for description
+   of each variant.
 
 
 Building (without PHP)
@@ -246,3 +255,38 @@ a flash pattern ". - . - ." -> 0b01010 -> 10:
 src/main.c:		panic(10, "BOOTFS not found");
 
 That is bootfs was not found. :)
+
+
+Variants
+--------
+
+p-boot can be compiled with several options that improve boot speed,
+or reduce size or both.
+
+  p-boot.bin        - probably what you want, logs to FDT only
+  p-boot-serial.bin - logs to serial console and FDT
+  p-boot-tiny.bin   - doesn't log at all, and doesn't store
+                      log messages in the binary, so it saves about
+                      5 KiB of space for more code
+
+
+This is a typical boot log from the p-boot.bin:
+
+% cat /sys/firmware/devicetree/base/p-boot/log
+
+p-boot (version 547db8d-dirty built 2020-05-20 22:55)
+384 us: PMIC ready
+3492 us: DRAM: 2048 MiB
+SoC ID: 92c059ba:14104620:78968308:101a0950
+Board rev: 1.2
+Boot Source: ff
+34065 us: eMMC ready
+Trying boot partition located at 0x100000(255 MiB) (part 0)
+Bootsel override via RTC data[0] to 5
+35500 us: Booting configuration 5 (xnux:Tablet UI test (eMMC))
+41228 us: IMG[A]: 0x476e400(61368 B) -> 0x44000 (10466 KiB/s)
+41856 us: IMG[D]: 0x477d400(37399 B) -> 0x4a000000 (58342 KiB/s)
+196896 us: IMG[L]: 0x4786800(14002184 B) -> 0x40080000 (88197 KiB/s)
+Model: Pine64 PinePhone (1.2)
+WiFi MAC: 02:ba:7c:9c:cc:78
+
