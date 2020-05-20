@@ -493,10 +493,10 @@ $cflags = [
 	'-mcmodel=tiny',
 	//'-fstack-usage',
 	//'-fmacro-prefix-map=/workspace/megous.com/orangepi-pc/u-boot-v2020.01/=',
-	//'-fomit-frame-pointer',
-	//'-fno-exceptions',
-	//'-fno-asynchronous-unwind-tables',
-	//'-fno-unwind-tables',
+	'-fomit-frame-pointer',
+	'-fno-exceptions',
+	'-fno-asynchronous-unwind-tables',
+	'-fno-unwind-tables',
 ];
 
 $ldflags = [
@@ -504,7 +504,8 @@ $ldflags = [
 	'-static',
 	'-Wl,--gc-sections',
 	'-Wl,--fix-cortex-a53-843419',
-	'-nostdlib'
+	'-nostdlib',
+	'-lgcc',
 ];
 
 $n->set_global('pboot_cflags', implode(' ', flat($cflags)));
