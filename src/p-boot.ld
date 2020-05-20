@@ -31,12 +31,12 @@ SECTIONS
 {
 	.text : {
 		. = ALIGN(8);
-		*start.o (.text)
+		*start.o (.text*)
 
 		/* We put code/data necessary for jump to Linux in the first 1KiB,
 		 * because 1KiB+ is clobbered by ATF NOBITS. */
-		*(.lowtext)
-		*(.lowdata)
+		*(.lowtext*)
+		*(.lowdata*)
 
 		. = ALIGN(8);
 		*(.text*)
