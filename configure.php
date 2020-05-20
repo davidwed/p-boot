@@ -515,15 +515,19 @@ function p_boot($conf) {
 
 	$name = $conf['name'] ?? null;
 	if (!$name)
-		die('Missing p_boot variant name');
+		die('Missing variant name');
 
-	$elf_out = "\$builddir/$name/p-boot.elf";
+	$main_c = $conf['main'] ?? null;
+	if (!$main_c)
+		die('Missing main path');
+
+	$elf_out = "\$builddir/$name/bin.elf";
 	add_cc_link_build([
 		'name' => str_replace('-', '_', $name),
 		'output' => $elf_out,
 		'sources' => [
 			'$srcdir/start.S',
-			'$srcdir/main.c',
+			$main_c,
 			'$srcdir/debug.c',
 			'$srcdir/lib.c',
 			'$srcdir/pmic.c',
@@ -556,27 +560,28 @@ function p_boot($conf) {
 			'$ubootdir/drivers/mmc/sunxi_mmc.c',
 			'$ubootdir/common/fdt_support.c',
 			'$ubootdir/lib/time.c',
+
 		],
 		'obj_deps' => [
-			'$srcdir/main.c' => '$builddir/build-ver.h',
+			$main_c => '$builddir/build-ver.h',
 		],
 		'cflags' => implode(' ', flat($conf['cflags'])),
 		'ldflags' => implode(' ', flat($conf['ldflags'])),
 		'link_deps' => ['$linker_script'],
 	]);
 
-	$bin_out = "\$builddir/$name/p-boot-bare.bin";
+	$bin_out = "\$builddir/$name/bare.bin";
 	$n->add_build('elf2bin', [$bin_out], [$elf_out]);
 
 	$bin_egon_out = "\$builddir/$name.bin";
 	$n->add_build('addegon', [$bin_egon_out], [$bin_out], [$mkboot_out]);
 	$all_deps[] = $bin_egon_out;
 
-	$as_out = "\$builddir/$name/p-boot.as";
+	$as_out = "\$builddir/$name/bin.as";
 	$n->add_build('elf2as', [$as_out], [$elf_out]);
 	$all_deps[] = $as_out;
 
-	$size_out = "\$builddir/$name/p-boot.size";
+	$size_out = "\$builddir/$name/bin.size";
 	$n->add_build('size', [$size_out], [$elf_out]);
 	$all_deps[] = $size_out;
 }
@@ -585,12 +590,14 @@ function p_boot_norm_lto($conf)
 {
 	p_boot([
 		'name' => $conf['name'],
+		'main' => $conf['main'],
 		'cflags' => $conf['cflags'],
 		'ldflags' => $conf['ldflags'],
 	]);
 
 	p_boot([
 		'name' => $conf['name'] . '-lto',
+		'main' => $conf['main'],
 		'cflags' => [$conf['cflags'], '-flto'],
 		'ldflags' => [$conf['ldflags'], '-flto'],
 	]);
@@ -598,6 +605,7 @@ function p_boot_norm_lto($conf)
 
 p_boot_norm_lto([
 	'name' => 'p-boot',
+	'main' => '$srcdir/main.c',
 	'cflags' => [
 		'$pboot_cflags',
 		 '-DSERIAL_CONSOLE',
@@ -608,6 +616,7 @@ p_boot_norm_lto([
 
 p_boot_norm_lto([
 	'name' => 'p-boot-silent',
+	'main' => '$srcdir/main.c',
 	'cflags' => [
 		'$pboot_cflags',
 	],
