@@ -620,6 +620,16 @@ p_boot([
 	'ldflags' => ['$pboot_ldflags'],
 ]);
 
+p_boot([
+	'name' => 'p-boot-dram-tune',
+	'main' => '$srcdir/memcalib.c',
+	'cflags' => [
+		'$pboot_cflags',
+		 '-DSERIAL_CONSOLE',
+	],
+	'ldflags' => ['$pboot_ldflags'],
+]);
+
 $n->add_build('mkver', ['$builddir/build-ver.h'], ['always']);
 
 $n->default = 'all';
