@@ -9,7 +9,7 @@
 
 #include <common.h>
 #include <asm/io.h>
-//#include <sunxi_mmap.h>
+#include "pmic.h"
 
 #define AXP803_HW_ADDR 0x3a3
 #define AXP803_RT_ADDR	0x2d
@@ -220,17 +220,17 @@ int rsb_init(void)
 					  AXP803_RT_ADDR);
 }
 
-int axp_write(uint8_t reg, uint8_t val)
+int pmic_write(uint8_t reg, uint8_t val)
 {
 	return rsb_write(AXP803_RT_ADDR, reg, val);
 }
 
-int axp_read(uint8_t reg_addr)
+int pmic_read(uint8_t reg_addr)
 {
 	return rsb_read(AXP803_RT_ADDR, reg_addr);
 }
 
-int axp_clrsetbits(uint8_t reg, uint8_t clr_mask, uint8_t set_mask)
+int pmic_clrsetbits(uint8_t reg, uint8_t clr_mask, uint8_t set_mask)
 {
 	uint8_t regval;
 	int ret;
@@ -243,3 +243,118 @@ int axp_clrsetbits(uint8_t reg, uint8_t clr_mask, uint8_t set_mask)
 
 	return rsb_write(AXP803_RT_ADDR, reg, regval);
 }
+
+void pmic_poweroff(void)
+{
+	// power off via PMIC
+	pmic_setbits(0x32, BIT(7));
+	hang();
+}
+
+void pmic_reboot(void)
+{
+	// soft power restart via PMIC
+	pmic_setbits(0x31, BIT(6));
+	hang();
+}
+
+void pmic_write_data(unsigned off, uint8_t data)
+{
+	if (off > 11)
+		return;
+
+	// data registers inside PMIC
+	pmic_write(0x04 + off, data);
+}
+
+int pmic_read_data(unsigned off)
+{
+	if (off > 11)
+		return -1;
+
+	// data registers inside PMIC
+	return pmic_read(0x04 + off);
+}
+
+void pmic_init(void)
+{
+        // enable DCDC/PWM chg freq spread
+	pmic_write(0x3b, 0x88);
+
+        // up the DCDC2 voltage to 1.3V (CPUX)
+        // default is 0.9V, and rampup speed is 2.5mV/us
+        // so we need 400mV/2.5mV = 160us before being able to ramp up
+        // CPU frequency
+        pmic_write(0x21, 0x4b);
+
+	// disable temp sensor charger effect
+	pmic_setbits(0x84, BIT(2));
+
+	// when SDP not detected set 2A VBUS current limit (my charger can do that)
+	pmic_write(0x30, 0x02);
+
+	// enable charger detection
+	pmic_write(0x2c, 0x95);
+
+	// short POK reaction times
+	pmic_write(0x36, 0x08);
+
+        // start battery max capacity calibration
+        //pmic_setbits(0xb8, BIT(5));
+
+	// clear power up status
+	pmic_write(0x02, 0xff);
+}
+
+void pmic_dump_registers(void)
+{
+	printf("Dumping PMIC registers:");
+	for (int i = 0; i < 0x80; i++)
+		printf("%x: %x\n", i, pmic_read(i));
+}
+
+void pmic_dump_status(void)
+{
+        int status0, status1, status2;
+
+	// read status registers
+	status0 = pmic_read(0x00);
+	status1 = pmic_read(0x01);
+	status2 = pmic_read(0x02);
+
+	// clear power up status
+	pmic_write(0x02, 0xff);
+
+	// print PMIC status
+	if (status0 >= 0 && status1 >= 0 && status2 >= 0) {
+		if (status2 & BIT(0))
+			printf("  PMIC power up by POK\n");
+		if (status2 & BIT(1))
+			printf("  PMIC power up by USB power\n");
+		if (status2 & BIT(5))
+			printf("  PMIC UVLO!\n");
+
+		printf("  VBUS %s\n", status0 & BIT(5) ? "present" : "absent");
+
+		if (status1 & BIT(5) && status1 & BIT(4)) {
+			printf("  Battery %s3.5V\n", status0 & BIT(3) ? ">" : "<");
+			printf("  Battery %s\n", status0 & BIT(2) ? "charging" : "discharging");
+			if (status1 & BIT(3))
+				printf("  Battery in SAFE mode\n");
+		} else {
+			printf("  Battery absent\n");
+		}
+	}
+}
+
+#if 0
+void pmic_reboot_with_timer(void)
+{
+	// enable power up by IRQ source
+	// detect irq wakeup by 8f[7]
+	//pmic_setbits(0x31, BIT(3));
+	//pmic_write(0x8a, 0x83); // start timer for 3 units
+	// 0x4c BIT(7) - event timer interrupt flag, wr 1 to clear
+	// 0x44 BIT(7) - event timer int en
+}
+#endif

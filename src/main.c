@@ -395,110 +395,19 @@ static uint32_t get_boot_source(void)
 // }}}
 // {{{ PMIC initialization
 
-static void pmic_init(void)
-{
-	int ret;
-
-	ret = rsb_init();
-	if (ret)
-		panic(9, "rsb init failed %d\n", ret);
-
-	printf("%d us: PMIC ready\n", timer_get_boot_us() - t0);
-
-#ifdef DEBUG
-	printf("Dumping PMIC registers:");
-	for (int i = 0; i < 0x80; i++)
-		printf("%x: %x\n", i, axp_read(i));
-#endif
-
-        // enable DCDC/PWM chg freq spread
-	axp_write(0x3b, 0x88);
-
-        // up the DCDC2 voltage to 1.3V (CPUX)
-        // default is 0.9V, and rampup speed is 2.5mV/us
-        // so we need 400mV/2.5mV = 160us before being able to ramp up
-        // CPU frequency
-        axp_write(0x21, 0x4b);
-
-#ifdef CONFIG_PMIC_VERBOSE
-        int status0, status1, status2;
-
-	// read status registers
-	status0 = axp_read(0x00);
-	status1 = axp_read(0x01);
-	status2 = axp_read(0x02);
-
-	// clear power up status
-	axp_write(0x02, 0xff);
-
-	// print PMIC status
-	if (status0 >= 0 && status1 >= 0 && status2 >= 0) {
-		if (status2 & BIT(0))
-			printf("  PMIC power up by POK\n");
-		if (status2 & BIT(1))
-			printf("  PMIC power up by USB power\n");
-		if (status2 & BIT(5))
-			printf("  PMIC UVLO!\n");
-
-		printf("  VBUS %s\n", status0 & BIT(5) ? "present" : "absent");
-
-		if (status1 & BIT(5) && status1 & BIT(4)) {
-			printf("  Battery %s3.5V\n", status0 & BIT(3) ? ">" : "<");
-			printf("  Battery %s\n", status0 & BIT(2) ? "charging" : "discharging");
-			if (status1 & BIT(3))
-				printf("  Battery in SAFE mode\n");
-		} else {
-			printf("  Battery absent\n");
-		}
-	}
-#else
-	// clear power up status
-	axp_write(0x02, 0xff);
-#endif
-
-	// disable temp sensor charger effect
-	axp_setbits(0x84, BIT(2));
-
-	// when SDP not detected set 2A VBUS current limit (my charger can do that)
-	axp_write(0x30, 0x02);
-
-	// enable charger detection
-	axp_write(0x2c, 0x95);
-
-	// short POK reaction times
-	axp_write(0x36, 0x08);
-
-        // start battery max capacity calibration
-        axp_setbits(0xb8, BIT(5));
-}
-
-static void pmic_poweroff(void)
-{
-        // power off via PMIC
-	axp_setbits(0x32, BIT(7));
-        hang();
-}
-
-static void pmic_reboot(void)
-{
-	// soft power restart via PMIC
-	axp_setbits(0x31, BIT(6));
-        hang();
-}
-
 static void pmic_enable_pinephone_lcd_power(void)
 {
 	// dldo1 3.3V
-	axp_write(0x15, 0x1a);
-	axp_setbits(0x12, BIT(3));
+	pmic_write(0x15, 0x1a);
+	pmic_setbits(0x12, BIT(3));
 
 	// dldo2 3.3V
-//	axp_write(0x16, 0x1a);
-//	axp_setbits(0x12, BIT(4));
+//	pmic_write(0x16, 0x1a);
+//	pmic_setbits(0x12, BIT(4));
 
 	// ldo_io0 3.3V
-//	axp_write(0x91, 0x1a); // set LDO voltage to 3.3V
-//	axp_write(0x90, 0x03); // enable LDO mode on GPIO0
+//	pmic_write(0x91, 0x1a); // set LDO voltage to 3.3V
+//	pmic_write(0x90, 0x03); // enable LDO mode on GPIO0
 }
 
 static void pmic_setup_bat_temp_sensor(void)
@@ -527,35 +436,7 @@ static void pmic_setup_ocv_table(void)
 {
 	// OCV table 0xc0 - 0xdf
         for (int i = 0; i < ARRAY_SIZE(ocv_tab); i++)
-                axp_write(0xc0 + i, ocv_tab[i]);
-}
-
-static void pmic_write_data(unsigned off, uint8_t data)
-{
-	if (off > 11)
-		return;
-
-	// data registers inside PMIC
-	axp_write(0x04 + off, data);
-}
-
-static int pmic_read_data(unsigned off)
-{
-	if (off > 11)
-		return -1;
-
-	// data registers inside PMIC
-	return axp_read(0x04 + off);
-}
-
-static void pmic_reboot_with_timer(void)
-{
-	// enable power up by IRQ source
-	// detect irq wakeup by 8f[7]
-	//axp_setbits(0x31, BIT(3));
-	//axp_write(0x8a, 0x83); // start timer for 3 units
-	// 0x4c BIT(7) - event timer interrupt flag, wr 1 to clear
-	// 0x44 BIT(7) - event timer int en
+                pmic_write(0xc0 + i, ocv_tab[i]);
 }
 
 // }}}
@@ -965,7 +846,7 @@ void panic_shutdown(uint32_t code)
 void main(void)
 {
 	struct mmc* mmc;
-	int board_rev;
+	int board_rev, ret;
 
 	t0 = timer_get_boot_us();
 
@@ -980,7 +861,12 @@ void main(void)
 
         // init PMIC first so that panic_shutdown() can power off the board
         // in case of panic()
+	ret = rsb_init();
+	if (ret)
+		panic(9, "rsb init failed %d\n", ret);
+
 	pmic_init();
+	printf("%d us: PMIC ready\n", timer_get_boot_us() - t0);
 
 	dram_init();
 	clocks_init();

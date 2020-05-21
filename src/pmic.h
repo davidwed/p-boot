@@ -21,9 +21,23 @@
 
 int rsb_init(void);
 
-int axp_write(uint8_t reg, uint8_t val);
-int axp_read(uint8_t reg_addr);
-int axp_clrsetbits(uint8_t reg, uint8_t clr_mask, uint8_t set_mask);
+int pmic_write(uint8_t reg, uint8_t val);
+int pmic_read(uint8_t reg_addr);
+int pmic_clrsetbits(uint8_t reg, uint8_t clr_mask, uint8_t set_mask);
 
-#define axp_clrbits(reg, clr_mask) axp_clrsetbits(reg, clr_mask, 0)
-#define axp_setbits(reg, set_mask) axp_clrsetbits(reg, 0, set_mask)
+#define pmic_clrbits(reg, clr_mask) pmic_clrsetbits(reg, clr_mask, 0)
+#define pmic_setbits(reg, set_mask) pmic_clrsetbits(reg, 0, set_mask)
+
+void pmic_poweroff(void);
+void pmic_reboot(void);
+
+/* access persistent data registers */
+void pmic_write_data(unsigned off, uint8_t data);
+int pmic_read_data(unsigned off);
+
+/* dump all registers to log */
+void pmic_dump_registers(void);
+void pmic_dump_status(void);
+
+/* initialize PMIC  */
+void pmic_init(void);
