@@ -293,29 +293,6 @@ static void red_led_set(bool on)
 
 ulong dram_size;
 
-static void dram_speed_test(unsigned int mb)
-{
-#ifdef CONFIG_DRAM_SPEED_TEST
-	volatile uint64_t* dram = (void*)0x45000000;
-	ulong t0, t1, t2;
-
-	t0 = timer_get_boot_us();
-
-	for (unsigned i = 0; i < 1024 * 1024 * mb / 8; i++)
-		dram[i] = i;
-
-	t1 = timer_get_boot_us();
-
-	for (unsigned i = 0; i < 1024 * 1024 * mb / 8; i++)
-		if (unlikely(dram[i] != i))
-			panic(7, "DRAM test failed\n");
-
-	t2 = timer_get_boot_us();
-
-	printf("DRAM speed: wr=%llu rd=%llu\n", t1 - t0, t2 - t1);
-#endif
-}
-
 #ifdef PBOOT_FDT_LOG
 
 // place log in SRAM C until DRAM is ready
@@ -353,8 +330,6 @@ static void dram_init(void)
 
 	printf("%d us: DRAM: %u MiB\n", timer_get_boot_us() - t0,
 	       (unsigned)(dram_size >> 20));
-
-	dram_speed_test(32);
 }
 
 // }}}
