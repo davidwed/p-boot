@@ -497,6 +497,7 @@ $cflags = [
 	'-fno-exceptions',
 	'-fno-asynchronous-unwind-tables',
 	'-fno-unwind-tables',
+	'-flto',
 ];
 
 $ldflags = [
@@ -506,6 +507,7 @@ $ldflags = [
 	'-Wl,--fix-cortex-a53-843419',
 	'-nostdlib',
 	'-lgcc',
+	'-flto',
 ];
 
 $n->set_global('pboot_cflags', implode(' ', flat($cflags)));
@@ -587,25 +589,18 @@ function p_boot($conf) {
 	$all_deps[] = $size_out;
 }
 
-function p_boot_norm_lto($conf)
-{
-	p_boot([
-		'name' => $conf['name'],
-		'main' => $conf['main'],
-		'cflags' => $conf['cflags'],
-		'ldflags' => $conf['ldflags'],
-	]);
-
-	p_boot([
-		'name' => $conf['name'] . '-lto',
-		'main' => $conf['main'],
-		'cflags' => [$conf['cflags'], '-flto'],
-		'ldflags' => [$conf['ldflags'], '-flto'],
-	]);
-}
-
-p_boot_norm_lto([
+p_boot([
 	'name' => 'p-boot',
+	'main' => '$srcdir/main.c',
+	'cflags' => [
+		'$pboot_cflags',
+		 '-DPBOOT_FDT_LOG',
+	],
+	'ldflags' => ['$pboot_ldflags'],
+]);
+
+p_boot([
+	'name' => 'p-boot-serial',
 	'main' => '$srcdir/main.c',
 	'cflags' => [
 		'$pboot_cflags',
@@ -615,18 +610,8 @@ p_boot_norm_lto([
 	'ldflags' => ['$pboot_ldflags'],
 ]);
 
-p_boot_norm_lto([
-	'name' => 'p-boot-fdtlog',
-	'main' => '$srcdir/main.c',
-	'cflags' => [
-		'$pboot_cflags',
-		 '-DPBOOT_FDT_LOG',
-	],
-	'ldflags' => ['$pboot_ldflags'],
-]);
-
-p_boot_norm_lto([
-	'name' => 'p-boot-silent',
+p_boot([
+	'name' => 'p-boot-tiny',
 	'main' => '$srcdir/main.c',
 	'cflags' => [
 		'$pboot_cflags',
