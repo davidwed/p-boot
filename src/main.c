@@ -37,6 +37,7 @@
 #include "debug.h"
 #include "mmu.h"
 #include "pmic.h"
+#include "ccu.h"
 #include "bootfs.h"
 #include "lradc.h"
 #include <build-ver.h>
@@ -851,9 +852,9 @@ void main(void)
 	t0 = timer_get_boot_us();
 
 	green_led_set(1);
-	clock_init_safe();
-	lradc_enable();
+	ccu_init();
 	console_init();
+	lradc_enable();
 
 	board_rev = detect_pinephone_revision();
 
@@ -869,7 +870,7 @@ void main(void)
 	printf("%d us: PMIC ready\n", timer_get_boot_us() - t0);
 
 	dram_init();
-	clocks_init();
+	ccu_upclock();
 
 	uint32_t sid[4];
 	get_soc_id(sid);

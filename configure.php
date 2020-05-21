@@ -536,6 +536,7 @@ function p_boot($conf) {
 			'$srcdir/pmic.c',
 			'$srcdir/mmu.c',
 			'$srcdir/lradc.c',
+			'$srcdir/ccu.c',
 
 			'$ubootdir/arch/arm/cpu/armv8/cache.S',
 			'$ubootdir/arch/arm/cpu/armv8/tlb.S',

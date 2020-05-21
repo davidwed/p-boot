@@ -20,8 +20,8 @@
 #include <common.h>
 #include <asm/io.h>
 #include <asm/arch/gpio.h>
-#include <asm/arch/clock.h>
 #include "debug.h"
+#include "ccu.h"
 
 #define UART0_BASE	0x01c28000
 
@@ -44,7 +44,10 @@
 
 void console_init(void)
 {
-	clock_init_uart();
+	/* open the clock for uart */
+	setbits_le32(CCU_BUS_CLK_GATE3, 1u << 16);
+	/* deassert uart reset */
+	setbits_le32(CCU_BUS_SOFT_RST4, 1u << 16);
 
 	/* uart0 pinctrl */
 	sunxi_gpio_set_cfgpin(SUNXI_GPB(8), SUN50I_GPB_UART0);
