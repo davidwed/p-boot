@@ -384,7 +384,7 @@ $all_deps[] = add_cc_link_build([
 	'toolchain' => 'native',
 	'output' => '$builddir/p-boot-conf-native',
 	'sources' => ['$srcdir/conf.c'],
-	'cflags' => '',
+	'cflags' => '-Og -g',
 	'ldflags' => '',
 ]);
 

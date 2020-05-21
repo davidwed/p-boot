@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -36,76 +37,134 @@
 #define PATH_MAX 1024
 #endif
 
-void usage(const char* msg)
-{
-	printf("ERROR: %s\n", msg);
-	printf("Usage: mkbootfs [conf-dir] [blk-dev]\n");
-	exit(1);
-}
+/*
+ * A tool for creating a bootfs filesystem.
+ *
+ * This is a simple read-only filesystem for p-boot, that contains file data in
+ * continuous segments that can be read very quickly without any indirection.
+ *
+ * Metadata is stored in the first 64 KiB in 32 2 KiB blocks. There are 3 types
+ * of metadata blocks:
+ * - superblock: contains information about the filesystem as a whole (block 0)
+ * - bconf: contains one boot configuration (blocks 1-31)
+ * - files: contains a list of 51 file nodes (name + data offset/length) (blocks 1-31)
+ *          filename size limit is 31 characters
+ */
+
+struct data {
+	char path[PATH_MAX];
+	int fd;
+	uint32_t offset;
+	uint32_t size;
+	struct data* next;
+};
+
+struct file {
+	char name[32];
+	struct data* data;
+};
+
+struct bconf_image {
+	uint32_t type;
+	struct data* data;
+	struct bconf_image* next;
+};
 
 struct bconf {
 	int used;
 	int index;
 	char path[1024];
 	char name[1024];
-
-	// image file fds
-	int linuximg;
-	int initramfs;
-	int atf;
-	int dtb;
 	char bootargs[4096];
-
-	char linuximg_path[PATH_MAX];
-	char initramfs_path[PATH_MAX];
-	char atf_path[PATH_MAX];
-	char dtb_path[PATH_MAX];
+	struct bconf_image* images;
 };
 
+static struct data* data_list;
 static struct bconf confs[32];
+static int n_files;
+static struct file files[400];
 
-bool str_ends_with(const char* s, const char* ext)
+// {{{ Parse conf file
+
+static struct data* data_add_file(const char* path)
 {
-	size_t len = strlen(s);
-	size_t ext_len = strlen(ext);
+	struct data* d, *last_d;
+	char rpath[PATH_MAX];
 
-	return !strcmp(s + (len - ext_len), ext);
+	if (!realpath(path, rpath)) {
+		printf("ERROR: Can't resolve path '%s' (%s)", path, strerror(errno));
+		exit(1);
+	}
+
+	for (d = data_list, last_d = d; d; last_d = d, d = d->next) {
+		if (!strcmp(rpath, d->path))
+			return d;
+	}
+
+	d = malloc(sizeof *d);
+	assert(d != NULL);
+	memset(d, 0, sizeof *d);
+
+	int fd = open(rpath, O_RDONLY);
+	if (fd < 0) {
+		printf("ERROR: Can't open file '%s' (%s)", path, strerror(errno));
+		exit(1);
+	}
+
+	//XXX: maybe read file contents and avoid dups based on content too
+
+	snprintf(d->path, sizeof d->path, "%s", rpath);
+        d->fd = fd;
+
+	if (last_d)
+		last_d->next = d;
+	else
+		data_list = d;
+
+	return d;
 }
 
-void complete_conf(struct bconf* c)
+static const struct image_type {
+	const char* conf_var;
+	char type;
+	bool optional;
+} image_types[] = {
+	{ "linux",     'L', },
+	{ "initramfs", 'I', true },
+	{ "atf",       'A', },
+	{ "dtb",       'D', },
+	{ "splash",    'S', true },
+};
+
+static void complete_conf(struct bconf* c)
 {
 	if (confs[c->index].used) {
 		printf("ERROR: %s: Configuration slot no=%d is already taken by '%s'\n", c->path, c->index, confs[c->index].path);
 		exit(1);
 	}
 
-	if (c->atf < 0) {
-		printf("ERROR: %s: Configuration slot no=%d is missing 'atf' image\n", c->path, c->index);
-		exit(1);
-	}
+	for (int i = 0; i < sizeof(image_types) / sizeof(image_types[0]); i++) {
+		if (image_types[i].optional)
+			continue;
 
-	if (c->linuximg < 0) {
-		printf("ERROR: %s: Configuration slot no=%d is missing 'linux' image\n", c->path, c->index);
-		exit(1);
-	}
+		struct bconf_image* im;
+                for (im = c->images; im; im = im->next) {
+			if (im->type == image_types[i].type)
+				goto found;
+		}
 
-	if (c->dtb < 0) {
-		printf("ERROR: %s: Configuration slot no=%d is missing 'dtb' image\n", c->path, c->index);
+		printf("ERROR: %s: Configuration slot no=%d is missing '%s' image\n", c->path, c->index, image_types[i].conf_var);
 		exit(1);
+found:;
 	}
 
 	c->used = 1;
 	confs[c->index] = *c;
 }
 
-bool parse_conf(const char* conf_dir, const char* conf_filename)
+static bool parse_conf(const char* conf_dir, const char* conf_filename)
 {
-	struct bconf conf_tpl = {
-		.linuximg = -1,
-		.atf = -1,
-		.dtb = -1,
-		.initramfs = -1,
-	};
+	struct bconf conf_tpl = {};
 
 	snprintf(conf_tpl.path, sizeof conf_tpl.path, "%s/%s", conf_dir, conf_filename);
 
@@ -174,36 +233,39 @@ bool parse_conf(const char* conf_dir, const char* conf_filename)
 				exit(1);
 			}
 
-			if (!strcmp(name, "linux") || !strcmp(name, "initramfs") || !strcmp(name, "atf") || !strcmp(name, "dtb")) {
-				char path[1024];
-				snprintf(path, sizeof path, "%s/%s", conf_dir, val);
-
-				int fd = open(path, O_RDONLY);
-				if (fd < 0) {
-					printf("ERROR: %s[%d]: Can't open image file '%s' for '%s'", conf.path, line_no, val, name);
-					exit(1);
-				}
-
-				if (!strcmp(name, "linux")) {
-					conf.linuximg = fd;
-					realpath(path, conf.linuximg_path);
-				} else if (!strcmp(name, "initramfs")) {
-					conf.initramfs = fd;
-					realpath(path, conf.initramfs_path);
-				} else if (!strcmp(name, "atf")) {
-					conf.atf = fd;
-					realpath(path, conf.atf_path);
-				} else if (!strcmp(name, "dtb")) {
-					conf.dtb = fd;
-					realpath(path, conf.dtb_path);
-				}
-			}
+			if (!strcmp(name, "name"))
+				snprintf(conf.name, sizeof conf.name, "%s", val);
 
 			if (!strcmp(name, "bootargs"))
 				snprintf(conf.bootargs, sizeof conf.bootargs, "%s", val);
 
-			if (!strcmp(name, "name"))
-				snprintf(conf.name, sizeof conf.name, "%s", val);
+			for (int i = 0; i < sizeof(image_types) / sizeof(image_types[0]); i++) {
+				if (strcmp(name, image_types[i].conf_var))
+					continue;
+
+				char path[PATH_MAX];
+				snprintf(path, sizeof path, "%s/%s", conf_dir, val);
+				struct data* d = data_add_file(path);
+
+				struct bconf_image* im = malloc(sizeof *im), *imi, *imi_last;
+				assert(im != NULL);
+				memset(im, 0, sizeof *im);
+
+				for (imi = conf.images, imi_last = imi; imi; imi_last = imi, imi = imi->next) {
+					if (imi->type == image_types[i].type) {
+						printf("ERROR: %s[%d]: Image '%s' is already set for no=%d", conf.path, line_no, image_types[i].conf_var, conf.index);
+						exit(1);
+					}
+				}
+
+				im->type = image_types[i].type;
+				im->data = d;
+
+				if (imi_last)
+					imi_last->next = im;
+				else
+					conf.images = im;
+			}
 		}
 	}
 
@@ -213,6 +275,61 @@ bool parse_conf(const char* conf_dir, const char* conf_filename)
 	fclose(f);
 	return true;
 }
+
+static void include_files(const char* dir)
+{
+	DIR* d = opendir(dir);
+	if (!d) {
+		printf("ERROR: Can't open directory '%s'\n", dir);
+		exit(1);
+	}
+
+	struct dirent *e;
+	while (1) {
+		errno = 0;
+		e = readdir(d);
+		if (!e) {
+			if (errno) {
+				printf("ERROR: failed to read directory '%s'\n", dir);
+				exit(1);
+			}
+
+			break;
+		}
+
+		char path[PATH_MAX];
+		snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
+		struct stat st;
+		int ret = stat(path, &st);
+		if (ret) {
+			printf("ERROR: failed to stat %s\n", path);
+			exit(1);
+		}
+
+		if (S_ISREG(st.st_mode)) {
+			if (strlen(e->d_name) > 31) {
+				printf("ERROR: File name too long '%s', max is 31 chars\n", path);
+				exit(1);
+			}
+
+			if (n_files >= sizeof(files) / sizeof(files[0])) {
+				printf("ERROR: Too many files\n", path);
+				exit(1);
+			}
+
+			struct data* d = data_add_file(path);
+			struct file* f = &files[n_files++];
+
+			f->data = d;
+			snprintf(f->name, sizeof f->name, "%s", e->d_name);
+		}
+	}
+
+	closedir(d);
+}
+
+// }}}
+// {{{ Write filesystem
 
 void write_checked(int fd, void* buf, size_t len)
 {
@@ -261,40 +378,29 @@ size_t write_fd_checked(int dest_fd, int src_fd)
 	return len;
 }
 
+static void usage(const char* msg)
+{
+	printf("ERROR: %s\n", msg);
+	printf("Usage: mkbootfs [conf-dir] [blk-dev]\n");
+	exit(1);
+}
+
 int main(int ac, char* av[])
 {
 	const char* conf_dir;
 	const char* blk_dev;
 
 	if (ac != 3)
-		usage("mising option");
+		usage("mising options");
 
 	conf_dir = av[1];
 	blk_dev = av[2];
 
-	/* read *.conf files from config directory into confs[] */
-	DIR* d = opendir(conf_dir);
-	if (!d)
-		usage("conf directory is not a directory");
+	parse_conf(conf_dir, "boot.conf");
 
-	struct dirent *e;
-	while (1) {
-		errno = 0;
-		e = readdir(d);
-		if (!e) {
-			if (errno) {
-				printf("ERROR: failed to read directory\n");
-				exit(1);
-			}
-
-			break;
-		}
-
-		if (str_ends_with(e->d_name, ".conf"))
-			parse_conf(conf_dir, e->d_name);
-	}
-
-	closedir(d);
+	char path[PATH_MAX];
+	snprintf(path, sizeof path, "%s/files", conf_dir);
+	include_files(path);
 
 	/* open bootfs partition block device */
 	int fd = open(blk_dev, O_RDWR | O_CREAT | O_TRUNC, 0666);
@@ -314,41 +420,76 @@ int main(int ac, char* av[])
 
 	off_t off_c = 2048;
 	off_t off_i = 2048 * 33;
+	int files_written = 0;
+
+        // write data images
+	printf("Data space:\n\n");
+	for (struct data* d = data_list; d; d = d->next) {
+		lseek_checked(fd, off_i);
+		lseek_checked(d->fd, 0);
+
+		d->offset = off_i;
+		d->size = write_fd_checked(fd, d->fd);
+
+		off_i += d->size;
+		if (off_i % 512)
+			off_i += (512 - off_i % 512);
+
+		printf("    %08x-%08x: %s (size %u KiB)\n", d->offset, d->offset + d->size, d->path, d->size / 1024);
+	}
+
+	printf("\nBoot configurations:\n\n");
 	for (int i = 0; i < 32; i++) {
 		if (confs[i].used) {
-			int n_imgs = 0;
 			struct bootfs_conf bc = {
 				.magic = ":BFCONF:",
 			};
 
-			printf("Writing boot configuration %d (%s)\n", confs[i].index, confs[i].path);
-			printf("  %-8s %s\n", "Name:", confs[i].name);
+			printf("no=%d (%s)\n\n", confs[i].index, confs[i].name);
+			printf("  %s\n\n", confs[i].bootargs);
 
-#define WRITE_IMG(n, t, desc) \
-			if (confs[i].n >= 0) { \
-				bc.images[n_imgs].type = htobe32(t); \
-				bc.images[n_imgs].data_off = htobe32(off_i); \
-				lseek_checked(fd, off_i); \
-				lseek_checked(confs[i].n, 0); \
-				size_t len = write_fd_checked(fd, confs[i].n); \
-				bc.images[n_imgs++].data_len = htobe32(len); \
-				off_i += len; \
-				if (off_i % 512) \
-					off_i += (512 - off_i % 512); \
-				printf("  %-8s %s (at %08x, size %zu)\n", desc, confs[i].n##_path, off_i, len); \
-			}
-
-			// build images list
-			WRITE_IMG(atf, 'A', "ATF:")
-			WRITE_IMG(dtb, 'D', "DTB:")
-			WRITE_IMG(linuximg, 'L', "Linux:")
-			WRITE_IMG(initramfs, 'I', "Initrd:")
-
-			snprintf(bc.boot_args, sizeof bc.boot_args, "%s", confs[i].bootargs);
 			snprintf(bc.name, sizeof bc.name, "%s", confs[i].name);
+			snprintf(bc.boot_args, sizeof bc.boot_args, "%s", confs[i].bootargs);
+
+			int n_imgs = 0;
+			for (struct bconf_image* im = confs[i].images; im; im = im->next) {
+				bc.images[n_imgs].type = htobe32(im->type);
+				bc.images[n_imgs].data_off = htobe32(im->data->offset);
+				bc.images[n_imgs++].data_len = htobe32(im->data->size);
+
+				printf("  %c %08x-%08x %s\n", im->type, im->data->offset, im->data->offset + im->data->size, im->data->path);
+			}
 
 			lseek_checked(fd, off_c);
 			write_checked(fd, &bc, sizeof bc);
+
+			printf("\n");
+		} else if (files_written < n_files) {
+			printf("file list block %d\n\n", i);
+
+			struct bootfs_files bf = {
+				.magic = ":BFILES:",
+			};
+
+			int files_rem = n_files - files_written;
+			files_rem = files_rem > 51 ? 51 : files_rem;
+
+			for (int i = 0; i < files_rem; i++) {
+				struct file* f = &files[files_written];
+
+				snprintf(bf.files[i].name, sizeof bf.files[i].name, "%s", f->name);
+				bf.files[i].data_off = htobe32(f->data->offset);
+				bf.files[i].data_len = htobe32(f->data->size);
+
+				printf("  %08x-%08x %s %s\n",
+				       f->data->offset, f->data->offset + f->data->size,
+				       f->name, f->data->path);
+
+				files_written++;
+			}
+
+			lseek_checked(fd, off_c);
+			write_checked(fd, &bf, sizeof bf);
 
 			printf("\n");
 		} else {
@@ -360,5 +501,9 @@ int main(int ac, char* av[])
 		off_c += 2048;
 	}
 
+	printf("Total filesystem size %zu KiB\n\n", off_i / 1024);
+
 	close(fd);
+	sync();
+	return 0;
 }

@@ -23,11 +23,11 @@
 
 // all values are BE
 
-// takes 512B
 struct bootfs_sb {
 	uint8_t magic[8]; // :BOOTFS:
 	uint32_t version; // 1
 	uint32_t default_conf;
+	uint32_t res[508];
 };
 
 struct bootfs_image {
@@ -44,8 +44,23 @@ struct bootfs_conf {
 	uint8_t name[96];
 };
 
+// takes 40B
+struct bootfs_file {
+	uint8_t name[32];
+	uint32_t data_off; // aligned to sector (512B)
+	uint32_t data_len; // unaligned, bootloader must align
+};
+
+// (2048 - 8) / 40B
+struct bootfs_files {
+	uint8_t magic[8]; // :BFILES:
+	struct bootfs_file files[51];
+};
+
 // layout
 
-// bootfs_sb starts
-// [bootfs_conf...]
-// [data...] each image data block is aligned to 512B, first starts at 128kB to leave space for boot entries
+// off (KiB) |
+// ------------------------------------
+// 0         | (bootfs_sb){1}
+// 2         | (bootfs_conf|bootfs_files){32}
+// 128       | (data...) each data block is aligned to 512B
