@@ -8,18 +8,18 @@ void mctl_set_timing_params(uint16_t socid, struct dram_para *para)
 			(struct sunxi_mctl_ctl_reg *)SUNXI_DRAM_CTL0_BASE;
 
 	u8 tccd		= 2;
-	u8 tfaw		= max(ns_to_t(50), 4);
-	u8 trrd		= max(ns_to_t(10), 2);
-	u8 trcd		= max(ns_to_t(24), 2);
-	u8 trc		= ns_to_t(70);
-	u8 txp		= max(ns_to_t(8), 2);
-	u8 twtr		= max(ns_to_t(8), 2);
-	u8 trtp		= max(ns_to_t(8), 2);
-	u8 twr		= max(ns_to_t(15), 3);
-	u8 trp		= max(ns_to_t(27), 2);
-	u8 tras		= ns_to_t(42);
-	u16 trefi	= ns_to_t(3900) / 32;
-	u16 trfc	= ns_to_t(210);
+	u8 tfaw		= max(ns_to_t(para, 50), 4);
+	u8 trrd		= max(ns_to_t(para, 10), 2);
+	u8 trcd		= max(ns_to_t(para, 24), 2);
+	u8 trc		= ns_to_t(para, 70);
+	u8 txp		= max(ns_to_t(para, 8), 2);
+	u8 twtr		= max(ns_to_t(para, 8), 2);
+	u8 trtp		= max(ns_to_t(para, 8), 2);
+	u8 twr		= max(ns_to_t(para, 15), 3);
+	u8 trp		= max(ns_to_t(para, 27), 2);
+	u8 tras		= ns_to_t(para, 42);
+	u16 trefi	= ns_to_t(para, 3900) / 32;
+	u16 trfc	= ns_to_t(para, 210);
 
 	u8 tmrw		= 5;
 	u8 tmrd		= 5;
@@ -35,10 +35,10 @@ void mctl_set_timing_params(uint16_t socid, struct dram_para *para)
 	u8 t_rdata_en	= 5;
 	u8 wr_latency	= 2;
 
-	u32 tdinit0	= (200 * CONFIG_DRAM_CLK) + 1;		/* 200us */
-	u32 tdinit1	= (100 * CONFIG_DRAM_CLK) / 1000 + 1;	/* 100ns */
-	u32 tdinit2	= (11 * CONFIG_DRAM_CLK) + 1;		/* 11us */
-	u32 tdinit3	= (1 * CONFIG_DRAM_CLK) + 1;		/* 1us */
+	u32 tdinit0	= (200 * para->clk_rate) + 1;		/* 200us */
+	u32 tdinit1	= (100 * para->clk_rate) / 1000 + 1;	/* 100ns */
+	u32 tdinit2	= (11 * para->clk_rate) + 1;		/* 11us */
+	u32 tdinit3	= (1 * para->clk_rate) + 1;		/* 1us */
 
 	u8 twtp		= tcwl + 4 + twr + 1;
 	u8 twr2rd	= tcwl + 4 + 1 + twtr;

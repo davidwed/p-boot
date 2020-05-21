@@ -381,7 +381,7 @@ static void mctl_sys_init(uint16_t socid, struct dram_para *para)
 	udelay(1000);
 
 	if (socid == SOCID_A64 || socid == SOCID_R40) {
-		clock_set_pll11(CONFIG_DRAM_CLK * 2 * 1000000, false);
+		clock_set_pll11((unsigned)para->clk_rate * 2 * 1000000, false);
 		clrsetbits_le32(&ccm->dram_clk_cfg,
 				CCM_DRAMCLK_CFG_DIV_MASK |
 				CCM_DRAMCLK_CFG_SRC_MASK,
@@ -389,7 +389,7 @@ static void mctl_sys_init(uint16_t socid, struct dram_para *para)
 				CCM_DRAMCLK_CFG_SRC_PLL11 |
 				CCM_DRAMCLK_CFG_UPD);
 	} else if (socid == SOCID_H3 || socid == SOCID_H5) {
-		clock_set_pll5(CONFIG_DRAM_CLK * 2 * 1000000, false);
+		clock_set_pll5((unsigned)para->clk_rate * 2 * 1000000, false);
 		clrsetbits_le32(&ccm->dram_clk_cfg,
 				CCM_DRAMCLK_CFG_DIV_MASK |
 				CCM_DRAMCLK_CFG_SRC_MASK,
@@ -681,7 +681,7 @@ static void mctl_auto_detect_dram_size(uint16_t socid, struct dram_para *para)
 	   3,  3,  3,  3,  3,  3,  3,  3,			\
 	   3,  3,  3,  3,  2,  0,  0      }
 
-unsigned long sunxi_dram_init(void)
+unsigned long sunxi_dram_init(u16 clk_rate)
 {
 	struct sunxi_mctl_com_reg * const mctl_com =
 			(struct sunxi_mctl_com_reg *)SUNXI_DRAM_COM_BASE;
@@ -689,6 +689,7 @@ unsigned long sunxi_dram_init(void)
 			(struct sunxi_mctl_ctl_reg *)SUNXI_DRAM_CTL0_BASE;
 
 	struct dram_para para = {
+		.clk_rate = clk_rate,
 		.dual_rank = 1,
 		.bus_full_width = 1,
 		.row_bits = 15,

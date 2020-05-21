@@ -33,7 +33,7 @@
 #include <asm/arch/dram_sun4i.h>
 #endif
 
-unsigned long sunxi_dram_init(void);
+unsigned long sunxi_dram_init(u16 clk_rate);
 void mctl_await_completion(u32 *reg, u32 mask, u32 val);
 bool mctl_mem_matches(u32 offset);
 

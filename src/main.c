@@ -310,7 +310,7 @@ void append_log(char c)
 
 static void dram_init(void)
 {
-	dram_size = sunxi_dram_init();
+	dram_size = sunxi_dram_init(552);
 	if (!dram_size)
 		panic(8, "DRAM not detected");
 

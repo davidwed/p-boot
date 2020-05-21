@@ -224,11 +224,12 @@ struct dram_para {
 	const u8 dx_read_delays[NR_OF_BYTE_LANES][LINES_PER_BYTE_LANE];
 	const u8 dx_write_delays[NR_OF_BYTE_LANES][LINES_PER_BYTE_LANE];
 	const u8 ac_delays[31];
+	u16 clk_rate;
 };
 
-static inline int ns_to_t(int nanoseconds)
+static inline int ns_to_t(struct dram_para* p, int nanoseconds)
 {
-	const unsigned int ctrl_freq = CONFIG_DRAM_CLK / 2;
+	const unsigned int ctrl_freq = p->clk_rate / 2;
 
 	return DIV_ROUND_UP(ctrl_freq * nanoseconds, 1000);
 }
