@@ -1132,8 +1132,10 @@ void main_sram_only(void)
 	       (unsigned)(dram_size >> 20));
 
 	ccu_upclock();
-	udelay(160);
-	clock_set_pll1(1152000000);
+
+// causes intermittent SD/emmc init/load failures
+//	udelay(1000);
+//	clock_set_pll1(1152000000);
 
 	void* dram_stack = malloc(128 * 1024);
 	extern uint32_t _dram_stack_top;
