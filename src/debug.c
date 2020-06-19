@@ -70,7 +70,7 @@ struct vidconsole* sys_console;
 
 #if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG) || defined(VIDEO_CONSOLE)
 
-void putc(char c)
+void real_putc(char c)
 {
 #ifdef SERIAL_CONSOLE
 	while (!TX_READY);
@@ -85,12 +85,12 @@ void putc(char c)
 #endif
 }
 
-void puts(const char* s)
+void real_puts(const char* s)
 {
 	while (*s) {
 		if (*s == '\n')
-			putc('\r');
-		putc(*s++);
+			real_putc('\r');
+		real_putc(*s++);
 	}
 }
 
@@ -112,15 +112,15 @@ static void put_uint(unsigned long long value, int align, int pad0)
 
 	int len = &buf[BUF_LEN - 1] - p;
 	for (int i = 0; i < align - len; i++)
-		putc(pad0 ? '0' : ' ');
+		real_putc(pad0 ? '0' : ' ');
 
-	puts(p);
+	real_puts(p);
 }
 
 static void put_int(long long v, int align, int pad0)
 {
 	if (v < 0) {
-		putc('-');
+		real_putc('-');
 		v = -v;
 		align--;
 	}
@@ -133,31 +133,31 @@ static void put_uint_div_by_1000(unsigned int value)
 	if (value >= 1000)
 		put_uint(value / 1000, 0, 0);
 	else
-		putc('0');
+		real_putc('0');
 
-	putc('.');
+	real_putc('.');
 	put_uint(value % 1000, 0, 0);
 }
 
-void put_hex(unsigned long long hex, int align, int pad0)
+void real_put_hex(unsigned long long hex, int align, int pad0)
 {
 	int i;
 	int skip_nibbles = hex > 0 ? __builtin_clzll(hex) / 4 : 15;
 
 	for (i = 0; i < align - (16 - skip_nibbles); i++)
-		putc(pad0 ? '0' : ' ');
+		real_putc(pad0 ? '0' : ' ');
 
 	for (i = skip_nibbles; i < 16; i++) {
 		unsigned nibble = (hex >> (4 * (15 - i))) & 0xf;
 
 		if (nibble < 10)
-			putc('0' + nibble);
+			real_putc('0' + nibble);
 		else
-			putc('a' + (nibble - 10));
+			real_putc('a' + (nibble - 10));
 	}
 }
 
-void printf(const char* fmt, ...)
+void real_printf(const char* fmt, ...)
 {
 	va_list ap;
 	const char* p = fmt;
@@ -194,10 +194,10 @@ void printf(const char* fmt, ...)
 
 			switch (*p) {
 				case 'c':
-					putc(va_arg(ap, int));
+					real_putc(va_arg(ap, int));
 					break;
 				case 's':
-					puts(va_arg(ap, char*));
+					real_puts(va_arg(ap, char*));
 					break;
 				case 'u':
 				case 'x': {
@@ -213,7 +213,7 @@ void printf(const char* fmt, ...)
 					if (*p == 'u')
 						put_uint(val, align, pad0);
 					else
-						put_hex(val, align, pad0);
+						real_put_hex(val, align, pad0);
 					break;
 				}
 				case 'd': {
@@ -233,24 +233,24 @@ void printf(const char* fmt, ...)
 					put_uint_div_by_1000(va_arg(ap, uint32_t));
 					break;
 				case 'p':
-					put_hex(va_arg(ap, unsigned long long), 8, 1);
+					real_put_hex(va_arg(ap, unsigned long long), 8, 1);
 					break;
 				case '%':
-					putc(*p);
+					real_putc(*p);
 					break;
 				case '\0':
 					goto end;
 				default:
-					putc('%');
-					putc(*p);
+					real_putc('%');
+					real_putc(*p);
 			}
 		} else if (*p == '\n') {
-			putc('\r');
-			putc(*p);
+			real_putc('\r');
+			real_putc(*p);
 		} else if (*p == '\0') {
 			goto end;
 		} else {
-			putc(*p);
+			real_putc(*p);
 		}
 
 		p++;

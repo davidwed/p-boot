@@ -19,48 +19,81 @@
 
 #pragma once
 
-#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG) || defined(VIDEO_CONSOLE)
-
-void putc(char c);
-void puts(const char* s);
-void printf(const char* fmt, ...);
-void put_hex(unsigned long long value, int align, int pad0);
-
-#else
-
-static inline void putc(char c) { }
-static inline void puts(const char* s) { }
-static inline void printf(const char* fmt, ...) { }
-static inline void put_hex(unsigned long long value, int align, int pad0) { }
-
-#endif
+void console_init(void);
 
 #ifdef PBOOT_FDT_LOG
 void append_log(char c);
 #endif
+
 #ifdef VIDEO_CONSOLE
 extern struct vidconsole* sys_console;
 #endif
 
-void console_init(void);
+/*
+ * Real logging functions are enabled if one of output mechanisms
+ * is enabled.
+ */
+
+#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG) || defined(VIDEO_CONSOLE)
+
+void real_putc(char c);
+void real_puts(const char* s);
+void real_printf(const char* fmt, ...);
+void real_put_hex(unsigned long long value, int align, int pad0);
+
+#else
+
+#define real_putc(a...)
+#define real_puts(a...)
+#define real_printf(a...)
+#define real_put_hex(a...)
+
+#endif
+
+/*
+ * NORMAL_LOGGING redirects output of printf() and friends to the
+ * real logging functions.
+ */
+
+#ifdef NORMAL_LOGGING
+
+#define putc(a...)     real_putc(a)
+#define puts(a...)     real_puts(a)
+#define printf(a...)   real_printf(a)
+#define put_hex(a...)  real_put_hex(a)
+
+#else
+
+#define putc(a...)
+#define puts(a...)
+#define printf(a...)
+#define put_hex(a...)
+
+#endif
+
+#define pr_info(a...)  printf(a)
+#define pr_warn(a...)  printf(a)
+#define pr_err(a...)   printf(a)
+
+/*
+ * DEBUG enables logging of debug messages.
+ */
 
 #ifdef DEBUG
 
 #define debug(a...) printf(a)
 #define pr_debug(a...) printf(a)
-#define pr_info(a...) printf(a)
-#define pr_warn(a...) printf(a)
-#define pr_err(a...) printf(a)
 
 #else
 
 #define debug(a...)
 #define pr_debug(a...)
-#define pr_info(a...)
-#define pr_warn(a...)
-#define pr_err(a...)
 
 #endif
+
+/*
+ * Panic interface.
+ */
 
 void panic_shutdown(uint32_t code);
 #define panic(code, a...) { printf(a); panic_shutdown(code); }
@@ -68,6 +101,10 @@ void panic_shutdown(uint32_t code);
         do { \
                 __asm__ __volatile__("wfi"); \
 	} while (1)
+
+/*
+ * Register dumping interface.
+ */
 
 void dump_regs(uint32_t start, uint32_t len, const char* name);
 void dump_pio(void);
