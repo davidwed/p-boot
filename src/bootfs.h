@@ -27,7 +27,8 @@ struct bootfs_sb {
 	uint8_t magic[8]; // :BOOTFS:
 	uint32_t version; // 1
 	uint32_t default_conf;
-	uint32_t res[508];
+	uint8_t device_id[32];
+	uint8_t res[2048-8-4-4-32];
 };
 
 struct bootfs_image {

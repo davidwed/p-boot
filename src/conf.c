@@ -79,6 +79,7 @@ struct bconf {
 	struct bconf_image* images;
 };
 
+static char* device_id;
 static struct data* data_list;
 static struct bconf confs[32];
 static int n_files;
@@ -212,6 +213,21 @@ static bool parse_conf(const char* conf_dir, const char* conf_filename)
 			val++;
 
 		if (val) {
+			if (!strcmp(name, "device_id")) {
+				if (device_id) {
+					printf("ERROR: %s[%d]: multiple device_id are not allowed", conf.path, line_no);
+					exit(1);
+				}
+
+				if (strlen(val) > 31) {
+					printf("ERROR: %s[%d]: device_id is too long (max 31 chars)", conf.path, line_no);
+					exit(1);
+				}
+
+				device_id = strdup(val);
+				continue;
+			}
+
 			// got a reasonably valid line
 			if (!strcmp(name, "no")) {
 				if (conf_started)
@@ -415,6 +431,9 @@ int main(int ac, char* av[])
 		.magic = ":BOOTFS:",
 		.version = htobe32(1),
 	};
+	
+	if (device_id)
+		snprintf(sb.device_id, sizeof sb.device_id, "%s", device_id);
 
 	write_checked(fd, &sb, sizeof sb);
 

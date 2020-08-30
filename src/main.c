@@ -1244,7 +1244,12 @@ static void boot_gui(struct bootfs* fs)
 	if (rtcsel.def >= 0)
 		gui_menu_set_selection(m, rtcsel.def);
 
-	gui_menu_set_title(m, POS_TOP_LEFT, "Boot menu", 0xeeddeeff, 0x55000000);
+	const char* title = "Boot menu";
+	if (fs->sb->device_id[0]) {
+		fs->sb->device_id[sizeof(fs->sb->device_id) - 1] = 0;
+		title = (const char*)fs->sb->device_id;
+	}
+	gui_menu_set_title(m, POS_TOP_LEFT, title, 0xeeddeeff, 0x55000000);
 	gui_menu_set_title(m, POS_BOTTOM_LEFT, "p-boot 1.0 / xnux.eu", 0xeeddeeff, 0x55000000);
 
 	int flips = 0;
@@ -1404,7 +1409,7 @@ void main(void)
 		display_commit(d);
 
 		while (!display_frame_done());
-		while (!display_frame_done());
+//		while (!display_frame_done());
 
 		// wait for vblank maybe
 		backlight_enable(80);
