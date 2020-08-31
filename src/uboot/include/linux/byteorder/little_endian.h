@@ -7,6 +7,7 @@
 #ifndef __LITTLE_ENDIAN_BITFIELD
 #define __LITTLE_ENDIAN_BITFIELD
 #endif
+#undef __BYTE_ORDER
 #define	__BYTE_ORDER	__LITTLE_ENDIAN
 
 #include <linux/compiler.h>
