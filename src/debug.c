@@ -22,6 +22,7 @@
 #include <asm/arch/gpio.h>
 #include "debug.h"
 #include "ccu.h"
+#include "vidconsole.h"
 
 #define UART0_BASE	0x01c28000
 
@@ -63,7 +64,11 @@ void console_init(void)
 	writel(LC_8_N_1, UART0_LCR);
 }
 
-#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG)
+#ifdef VIDEO_CONSOLE
+struct vidconsole* sys_console;
+#endif
+
+#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG) || defined(VIDEO_CONSOLE)
 
 void putc(char c)
 {
@@ -74,6 +79,9 @@ void putc(char c)
 #endif
 #ifdef PBOOT_FDT_LOG
 	append_log(c);
+#endif
+#ifdef VIDEO_CONSOLE
+	vidconsole_putc(sys_console, c);
 #endif
 }
 

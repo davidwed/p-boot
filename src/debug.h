@@ -19,7 +19,7 @@
 
 #pragma once
 
-#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG)
+#if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG) || defined(VIDEO_CONSOLE)
 
 void putc(char c);
 void puts(const char* s);
@@ -37,6 +37,9 @@ static inline void put_hex(unsigned long long value, int align, int pad0) { }
 
 #ifdef PBOOT_FDT_LOG
 void append_log(char c);
+#endif
+#ifdef VIDEO_CONSOLE
+extern struct vidconsole* sys_console;
 #endif
 
 void console_init(void);

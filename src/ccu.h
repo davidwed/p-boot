@@ -36,6 +36,8 @@
 #define CCU_BUS_SOFT_RST4	(CCU_BASE + 0x2d8)
 #define CCU_PLL_LOCK_CTRL	(CCU_BASE + 0x320)
 
+#define CCU_MIPI_DSI_CLK	(CCU_BASE + 0x168)
+
 #define CCU_LOCK_MASK		(1u << 28)
 
 void ccu_set_pll_cpux(unsigned int clk);

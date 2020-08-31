@@ -40,6 +40,9 @@
 #include "ccu.h"
 #include "bootfs.h"
 #include "lradc.h"
+#include "display.h"
+#include "vidconsole.h"
+#include "gui.h"
 #include <build-ver.h>
 
 #define DRAM_MAIN         0x80000000
@@ -1119,6 +1122,11 @@ void main_sram_only(void)
 	icache_enable();
 	mmu_setup(dram_size);
 
+#ifdef VIDEO_CONSOLE
+	sys_console = zalloc(sizeof *sys_console);
+	vidconsole_init(sys_console, 45, 45, 2, 0xffffffff, 0x00000000);
+#endif
+
 #ifdef PBOOT_FDT_LOG
 	// allocate 128 KiB for the log and move it to DRAM from SRAM C
 	char* new_log = malloc(128 * 1024);
@@ -1126,6 +1134,12 @@ void main_sram_only(void)
 	memcpy(new_log, TMP_LOG_START, log_size);
 	globals->log_end = globals->log_start = new_log;
 	globals->log_end += log_size;
+
+#ifdef VIDEO_CONSOLE
+	// feed the sys console
+	for (char* c = globals->log_start; c < globals->log_end; c++)
+		vidconsole_putc(sys_console, *c);
+#endif
 #endif
 
 	printf("%d us: DRAM: %u MiB\n", timer_get_boot_us() - t0,
@@ -1144,7 +1158,7 @@ void main_sram_only(void)
 
 static bool reboot_loop = false;
 
-static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc)
+static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t splash_fb)
 {
 	//
 	// Normal boot
@@ -1153,6 +1167,9 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc)
 	struct boot* boot = zalloc(sizeof *boot);
 	if (!boot_prepare(boot, fs, sbc))
 		panic(12, "Failed to load boot images\n");
+
+	if (splash_fb)
+		fdt_setup_framebuffer(boot, splash_fb);
 
 	//boot_append_bootargs(boot, source == SD ? "bootdev=sd" : "bootdev=emmc");
 
@@ -1168,6 +1185,157 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc)
 		pmic_reboot();
 		
 	boot_perform(boot);
+}
+
+static bool load_splash(struct bootfs* fs, struct bootfs_conf* bc, uint32_t dest)
+{
+	if (memcmp(bc->magic, ":BFCONF:", 8))
+		return false;
+
+	for (int j = 0; j < ARRAY_SIZE(bc->images); j++) {
+		struct bootfs_image* im = &bc->images[j];
+		unsigned type = __be32_to_cpu(im->type);
+		if (type == 'S') {
+			ssize_t size = bootfs_load_image(fs, dest,
+					  __be32_to_cpu(im->data_off),
+					  __be32_to_cpu(im->data_len),
+					  "splash");
+			return size > 0;
+		}
+	}
+
+	return false;
+}
+
+static void boot_gui(struct bootfs* fs)
+{
+	struct display* d = zalloc(sizeof *d);
+	struct gui* g = zalloc(sizeof *g);
+	struct bootsel rtcsel;
+	uint32_t item_color_default = 0xff11ff22;
+	uint32_t item_color_other = 0xffeeccdd;
+
+	wdog_disable();
+
+	// background image
+	bootfs_load_file(fs, 0x48000000, "pboot2.argb");
+	d->planes[0].fb_start = 0x48000000;
+	d->planes[0].fb_pitch = 720 * 4;
+	d->planes[0].src_w = 720;
+	d->planes[0].src_h = 1440;
+	d->planes[0].dst_w = 720;
+	d->planes[0].dst_h = 1440;
+
+        gui_init(g, d);
+	display_commit(g->display);
+	rtc_bootsel_get(&rtcsel);
+
+	struct gui_menu* m = gui_menu(g);
+	for (int i = 0; i < 32; i++) {
+		struct bootfs_conf* c = &fs->confs_blocks[i];
+		if (!memcmp(c->magic, ":BFCONF:", 8)) {
+			gui_menu_add_item(m, i, (char*)c->name, rtcsel.def == i ? item_color_default : item_color_other);
+		}
+	}
+
+	gui_menu_add_item(m, 0, "", 0);
+	//gui_menu_add_item(m, 100, "Console ->", 0xff770011);
+	gui_menu_add_item(m, 101, "Poweroff", 0xffff2211);
+	if (rtcsel.def >= 0)
+		gui_menu_set_selection(m, rtcsel.def);
+
+	gui_menu_set_title(m, POS_TOP_LEFT, "Boot menu", 0xeeddeeff, 0x55000000);
+	gui_menu_set_title(m, POS_BOTTOM_LEFT, "p-boot 1.0 / xnux.eu", 0xeeddeeff, 0x55000000);
+
+	int flips = 0;
+	int boot_sel = -1;
+	enum {
+		STATE_MENU,
+		STATE_OFF,
+		STATE_BOOT,
+	} state = STATE_MENU;
+
+	uint64_t end = timer_get_boot_us() + 10000000;
+	while (true) {
+		gui_get_events(g);
+
+		if (g->events & BIT(EV_VBLANK)) {
+			// handle state switch after vblank
+			if (state == STATE_OFF) {
+				bootfs_load_file(fs, 0x48000000, "off.argb");
+				d->planes[1].fb_start = 0;
+				display_commit(g->display);
+				udelay(1000000);
+				pmic_poweroff();
+				//soc_reset();
+			} else if (state == STATE_BOOT) {
+				load_splash(fs, &fs->confs_blocks[boot_sel], 0x48000000);
+				d->planes[1].fb_start = 0;
+				display_commit(g->display);
+				gui_fini(g);
+				boot_selection(fs, &fs->confs_blocks[boot_sel], 0x48000000);
+				soc_reset();
+			}
+
+			display_commit(g->display);
+			flips++;
+
+			if (flips == 1) {
+				backlight_enable(80);
+			}
+		}
+
+		// extend deadline if user is interacting
+		if (g->events & ~BIT(EV_VBLANK))
+			end = timer_get_boot_us() + 10000000;
+
+		if (end < g->now) {
+			state = STATE_OFF;
+		}
+
+		if (m->selection_changed) {
+			int id = gui_menu_get_selection(m);
+			if (id == 101) {
+				bootfs_load_file(fs, 0x48000000, "off.argb");
+			} else if (id <= 32) {
+				if (!load_splash(fs, &fs->confs_blocks[id], 0x48000000))
+					bootfs_load_file(fs, 0x48000000, "pboot2.argb");
+			}
+		}
+
+		if (g->events & BIT(EV_POK_LONG)) {
+			// mark current selection as default
+			int id = gui_menu_get_selection(m);
+			if (id == 101) {
+				rtcsel.def = -1;
+				rtcsel.next = -1;
+				rtc_bootsel_set(&rtcsel);
+			} else if (id <= 32) {
+				rtcsel.def = id;
+				rtc_bootsel_set(&rtcsel);
+			}
+
+			// refresh colors marking the default selection
+			for (int i = 0; i < m->n_items; i++) {
+				if (m->items[i].id <= 32) {
+					m->items[i].fg = rtcsel.def == m->items[i].id ? item_color_default : item_color_other;
+					m->changed = true;
+				}
+			}
+		}
+
+		if (g->events & BIT(EV_POK_SHORT)) {
+			int id = gui_menu_get_selection(m);
+			if (id == 101) {
+				state = STATE_OFF;
+			} else if (id <= 32) {
+				state = STATE_BOOT;
+				boot_sel = id;
+			}
+		}
+	}
+
+	gui_fini(g);
 }
 
 void main(void)
@@ -1214,6 +1382,44 @@ void main(void)
 
 	int key = lradc_get_pressed_key();
 
+#ifdef ENABLE_GUI
+	/* read volume keys status */
+	if (key == KEY_VOLUMEDOWN)
+		goto display_init;
+
+	struct bootfs_conf* sbc = bootfs_select_configuration(fs);
+	if (!sbc)
+		goto display_init;
+
+	if (load_splash(fs, sbc, 0x48000000)) {
+		// show splash
+		display_init();
+		struct display* d = zalloc(sizeof *d);
+		d->planes[0].fb_start = 0x48000000;
+		d->planes[0].fb_pitch = 720 * 4;
+		d->planes[0].src_w = 720;
+		d->planes[0].src_h = 1440;
+		d->planes[0].dst_w = 720;
+		d->planes[0].dst_h = 1440;
+		display_commit(d);
+
+		while (!display_frame_done());
+		while (!display_frame_done());
+
+		// wait for vblank maybe
+		backlight_enable(80);
+
+		boot_selection(fs, sbc, 0x48000000);
+		goto boot_ui;
+	} else {
+		boot_selection(fs, sbc, 0);
+	}
+
+display_init:
+	display_init();
+boot_ui:
+	boot_gui(fs);
+#else
 //	reboot_loop = true;
 	int sel = 0;
 	if (key == KEY_VOLUMEDOWN) {
@@ -1222,7 +1428,7 @@ void main(void)
 	} else if (key == KEY_VOLUMEUP)
 		sel = 2;
 
-	boot_selection(fs, &fs->confs_blocks[sel]);
-
+	boot_selection(fs, &fs->confs_blocks[sel], 0);
+#endif
 	panic(10, "Should not return\n");
 }

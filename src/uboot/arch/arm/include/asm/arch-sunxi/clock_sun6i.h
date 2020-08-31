@@ -407,11 +407,16 @@ struct sunxi_ccm_reg {
 #define CCM_DRAM_GATE_OFFSET_DE_BE0	26
 #define CCM_DRAM_GATE_OFFSET_DE_BE1	27
 
+#ifdef CONFIG_MACH_SUN50I
+#define CCM_LCD_CH0_CTRL_PLL3_2X	(2 << 24)
+#define CCM_LCD_CH0_CTRL_MIPI_PLL	(0 << 24)
+#else
 #define CCM_LCD_CH0_CTRL_PLL3		(0 << 24)
 #define CCM_LCD_CH0_CTRL_PLL7		(1 << 24)
 #define CCM_LCD_CH0_CTRL_PLL3_2X	(2 << 24)
 #define CCM_LCD_CH0_CTRL_PLL7_2X	(3 << 24)
 #define CCM_LCD_CH0_CTRL_MIPI_PLL	(4 << 24)
+#endif
 /* No reset bit in ch0_clk_cfg (reset is controlled through ahb_reset1) */
 #define CCM_LCD_CH0_CTRL_RST		0
 #define CCM_LCD_CH0_CTRL_GATE		(0x1 << 31)

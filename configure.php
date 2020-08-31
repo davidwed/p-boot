@@ -536,6 +536,9 @@ function p_boot($conf) {
 			'$srcdir/mmu.c',
 			'$srcdir/lradc.c',
 			'$srcdir/ccu.c',
+			'$srcdir/display.c',
+			'$srcdir/vidconsole.c',
+			'$srcdir/gui.c',
 
 			'$ubootdir/arch/arm/cpu/armv8/cache.S',
 			'$ubootdir/arch/arm/cpu/armv8/tlb.S',
@@ -595,7 +598,9 @@ p_boot([
 	'cflags' => [
 		'$pboot_cflags',
 //		 '-DPBOOT_FDT_LOG',
+//		 '-DVIDEO_CONSOLE',
 		 '-DSERIAL_CONSOLE',
+		 '-DENABLE_GUI',
 		 '-DRETURN_TO_DRAM_MAIN',
 		 '-DDRAM_STACK_SWITCH',
 	],
@@ -623,6 +628,16 @@ p_boot([
 		'$pboot_cflags',
 		 '-DRETURN_TO_DRAM_MAIN',
 		 '-DDRAM_STACK_SWITCH',
+	],
+	'ldflags' => ['$pboot_ldflags'],
+]);
+p_boot([
+	'name' => 'p-boot-dtest',
+	'main' => '$srcdir/dtest.c',
+	'cflags' => [
+		'$pboot_cflags',
+		 '-DSERIAL_CONSOLE',
+		 '-DVIDEO_CONSOLE',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
