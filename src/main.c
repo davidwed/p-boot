@@ -777,7 +777,7 @@ static void fdt_add_pboot_data(void* fdt_blob, struct bootfs* fs)
  */
 
 #define ATF_PA		0x44000
-#define LINUX_IMAGE_PA	0x40080000
+#define LINUX_IMAGE_PA	0x40000000
 #define FDT_BLOB_PA	0x4a000000
 #define INITRAMFS_PA	0x4fe00000
 
