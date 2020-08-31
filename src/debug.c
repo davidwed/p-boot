@@ -253,3 +253,77 @@ end:
 }
 
 #endif
+
+void dump_regs(uint32_t start, uint32_t len, const char* name)
+{
+	unsigned off = 0;
+
+        printf("\n# %s (0x%08x - 0x%08x):\n\n", name, start, start + len - 4);
+
+        for (; start < start + len; start += 4, off += 4) {
+		uint32_t val = readl((unsigned long)start);
+		if (val) {
+			//printf("%08x : %08x # +%04x\n", start, val, off);
+			printf("0x%08x : %08x\n", start, val);
+		}
+	}
+}
+
+#define PIO(n, a) readl(0x01C20800ul + (n) * 0x24 + a)
+#define RPIO(a) readl(0x01f02c00ul + a)
+
+void dump_pio(void)
+{
+        printf("\n# PIO:\n\n");
+
+        for (unsigned i = 1; i <= 7; i++) {
+                printf("P%c_CFG0 = %08x\n", 'A' + i, PIO(i, 0x00));
+                printf("P%c_CFG1 = %08x\n", 'A' + i, PIO(i, 0x04));
+                printf("P%c_CFG2 = %08x\n", 'A' + i, PIO(i, 0x08));
+                printf("P%c_CFG3 = %08x\n", 'A' + i, PIO(i, 0x0c));
+                printf("P%c_DAT  = %08x\n", 'A' + i, PIO(i, 0x10));
+                printf("P%c_DRV0 = %08x\n", 'A' + i, PIO(i, 0x14));
+                printf("P%c_DRV1 = %08x\n", 'A' + i, PIO(i, 0x18));
+                printf("P%c_PUL0 = %08x\n", 'A' + i, PIO(i, 0x1c));
+                printf("P%c_PUL1 = %08x\n", 'A' + i, PIO(i, 0x20));
+        }
+
+        printf("PL_CFG0 = %08x\n", RPIO(0x00));
+        printf("PL_CFG1 = %08x\n", RPIO(0x04));
+        printf("PL_CFG2 = %08x\n", RPIO(0x08));
+        printf("PL_CFG3 = %08x\n", RPIO(0x0c));
+        printf("PL_DAT  = %08x\n", RPIO(0x10));
+        printf("PL_DRV0 = %08x\n", RPIO(0x14));
+        printf("PL_DRV1 = %08x\n", RPIO(0x18));
+        printf("PL_PUL0 = %08x\n", RPIO(0x1c));
+        printf("PL_PUL1 = %08x\n", RPIO(0x20));
+}
+
+void dump_de2_registers(void)
+{
+	dump_regs(0x01000000, 0x14, "de2");
+        dump_regs(0x01100000 + 0x0000, 0x10, "mixer0 GLB");
+        dump_regs(0x01100000 + 0x1000, 0x100, "mixer0 BLD");
+        dump_regs(0x01100000 + 0x2000, 0x100, "mixer0 VI");
+        dump_regs(0x01100000 + 0x3000, 0x8c, "mixer0 UI1");
+        dump_regs(0x01100000 + 0x4000, 0x8c, "mixer0 UI2");
+        dump_regs(0x01100000 + 0x5000, 0x8c, "mixer0 UI3");
+}
+
+void dump_dsi_registers(void)
+{
+	dump_regs(0x01c0c000, 0x200, "tcon");
+	dump_regs(0x01ca1000, 0x100, "dphy");
+	dump_regs(0x01ca0000, 0x1000, "dsi");
+}
+
+void dump_ccu_registers(void)
+{
+	dump_regs(0x01c20000, 0x1000, "ccu");
+	//dump_regs(0x01c0f000, 0x200, "mmc0");
+	//dump_regs(0x01c10000, 0x200, "mmc1");
+	//dump_regs(0x01c11000, 0x200, "mmc2");
+	//dump_regs(0x01c21400, 0x100, "pwm");
+	//dump_regs(0x01c21400, 0x100, "r_pwm");
+
+}

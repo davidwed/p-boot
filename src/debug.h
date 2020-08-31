@@ -65,3 +65,9 @@ void panic_shutdown(uint32_t code);
         do { \
                 __asm__ __volatile__("wfi"); \
 	} while (1)
+
+void dump_regs(uint32_t start, uint32_t len, const char* name);
+void dump_pio(void);
+void dump_ccu_registers(void);
+void dump_de2_registers(void);
+void dump_dsi_registers(void);
