@@ -1,34 +1,27 @@
-1.0: (est. mid to late May 2020)
+1.0: (est. December 2020)
 
-- make a memory tuning/testing SPL program
-  - find the stable DRAM frequency quickly (when running from SRAM
-    we can do a quick reconfigurations of DRAM and perform automated
-    testing/optimization)
+- investigate timer erratum
+  - upclocking may trigger it
+  - or switching to 24MHz osc
 
-- ext2 support (will probably be slower than bootfs)
-  - parse config from a *.conf file
+- i2c support
+  - touch screen support
+    - virt keyboard?
+  - read proximity sensor data
+    - abort boot and poweroff if pressing the power button
+      when the proximity sensor is covered (phone in the bag,
+      pocket, etc.)
+
+- audio support
+  - signal boot issues via beeping on the loudspeaker
+  - requires DMA (already done) + toggling a bunch of registers to
+    enable the codec
 
 - make poweroff on panic more robust
   - reset SoC with a flag in RTC data register to signal p-boot to
     perform poweroff right after pmic_init (also avoid reset loop)
 
-- allow to override RTC based boot selection once, while restoring
-  the previous RTC value (not resetting as now)
-
-- detect 1.0/1.1 vs 1.2 hardware and load appropriate DTB
-
-
 X.X: (est. ????)
 
-- read i2c proximity sensor
-  - abort boot and poweroff if pressing the power button
-    when the proximity sensor is covered (phone in the bag,
-    pocket, etc.)
-
-- optimize bootfs creation tool to not overwrite the whole partition
-  on each update
-
-- audio / beep
-  - signal boot issues via beeping on the loudspeaker
-
-- display/touch support
+- ext2 support (will probably be slower than bootfs)
+  - parse config from a *.conf file

@@ -1,8 +1,10 @@
 p-boot - pico sized bootloader for PinePhone
 --------------------------------------------
 
+Official website: https://xnux.eu/p-boot/
+
 This is a no nonsense bootloader for extremely fast and flexible booting
-of PinePhone. p-boot is partly based on some borrowed U-Boot code.
+of PinePhone. p-boot is partly based on some borrowed U-Boot and Linux code.
 
 Some benefits over U-Boot:
 
@@ -42,7 +44,8 @@ Some benefits over U-Boot:
 - Single DT blob used by p-boot, ATF and Linux (no U-Boot specific DT blob needed)
 - Configure a stable WiFi MAC address in FDT based on SoC ID
 - A lot of free space for extensions (p-boot size limit is 32KiB, current
-  p-boot size is 20KiB)
+  p-boot size is 31KiB with display support enabled and 25KiB with display support
+  disabled)
 - Easy to understand and customize
 
 Enjoy!
@@ -159,6 +162,8 @@ Once done, you can reboot the PinePhone to check that p-boot works.
 
 Runtime behavior
 ----------------
+
+(this is slightly outdated, check main.c for actual behavior)
 
 During powerup or reboot, p-boot will check several places in its decision
 making process for selecting the desired boot configuration:
@@ -289,4 +294,35 @@ Bootsel override via RTC data[0] to 5
 196896 us: IMG[L]: 0x4786800(14002184 B) -> 0x40080000 (88197 KiB/s)
 Model: Pine64 PinePhone (1.2)
 WiFi MAC: 02:ba:7c:9c:cc:78
+
+
+Bugs and support
+----------------
+
+Please report bugs via email:
+
+    p-boot@xnux.eu
+
+
+Development
+-----------
+
+Project status: p-boot is maintained and actively developed by the original
+author.
+
+You can join development of p-boot by sending questions, ideas, bugreports
+and patches to the above mailing address.
+
+GIT repository is available at: https://megous.com/git/p-boot. 
+
+
+Support the project
+-------------------
+
+p-boot is free and opesource software released under GPLv3. It is an independent
+personal project not backed by any comapny or commercial interests. You can
+contribute by writing code, helping improve documentation, spreading the word,
+and/or by donating at:
+
+  https://xnux.eu/contribute.html
 
