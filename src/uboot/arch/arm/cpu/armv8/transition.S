@@ -9,7 +9,7 @@
 #include <linux/linkage.h>
 #include <asm/macro.h>
 
-.pushsection .lowtext.armv8_switch_to_el2, "ax"
+.pushsection .text.armv8_switch_to_el2, "ax"
 ENTRY(armv8_switch_to_el2)
 	switch_el x6, 1f, 0f, 0f
 0:

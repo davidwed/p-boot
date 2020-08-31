@@ -354,7 +354,7 @@ static void mctl_set_cr(uint16_t socid, struct dram_para *para)
 
 	if (socid == SOCID_R40) {
 		if (para->dual_rank)
-			panic(30, "Dual rank memory not supported\n");
+			panic(2, "Dual rank memory not supported\n");
 
 		/* Mux pin to A15 address line for single rank memory. */
 		setbits_le32(&mctl_com->cr_r1, MCTL_CR_R1_MUX_A15);

@@ -19,6 +19,7 @@
 
 #include "ccu.h"
 #include <asm/io.h>
+#include <asm/arch/prcm.h>
 
 void ccu_set_pll_cpux(unsigned int clk)
 {

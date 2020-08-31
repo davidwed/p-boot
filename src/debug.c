@@ -65,7 +65,6 @@ void console_init(void)
 
 #if defined(SERIAL_CONSOLE) || defined(PBOOT_FDT_LOG)
 
-__attribute__((section(".lowtext")))
 void putc(char c)
 {
 #ifdef SERIAL_CONSOLE
@@ -78,7 +77,6 @@ void putc(char c)
 #endif
 }
 
-__attribute__((section(".lowtext")))
 void puts(const char* s)
 {
 	while (*s) {
@@ -89,7 +87,6 @@ void puts(const char* s)
 }
 
 #define BUF_LEN 30
-__attribute__((section(".lowtext")))
 static void put_uint(unsigned long long value, int align, int pad0)
 {
 	char buf[BUF_LEN];
@@ -112,7 +109,6 @@ static void put_uint(unsigned long long value, int align, int pad0)
 	puts(p);
 }
 
-__attribute__((section(".lowtext")))
 static void put_int(long long v, int align, int pad0)
 {
 	if (v < 0) {
@@ -124,7 +120,6 @@ static void put_int(long long v, int align, int pad0)
 	put_uint(v, align, 0);
 }
 
-__attribute__((section(".lowtext")))
 static void put_uint_div_by_1000(unsigned int value)
 {
 	if (value >= 1000)
@@ -136,7 +131,6 @@ static void put_uint_div_by_1000(unsigned int value)
 	put_uint(value % 1000, 0, 0);
 }
 
-__attribute__((section(".lowtext")))
 void put_hex(unsigned long long hex, int align, int pad0)
 {
 	int i;
@@ -155,7 +149,6 @@ void put_hex(unsigned long long hex, int align, int pad0)
 	}
 }
 
-__attribute__((section(".lowtext")))
 void printf(const char* fmt, ...)
 {
 	va_list ap;

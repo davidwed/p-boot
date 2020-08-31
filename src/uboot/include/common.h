@@ -50,9 +50,11 @@ typedef volatile unsigned char	vu_char;
 
 ulong	get_tbclk     (void);
 ulong timer_get_boot_us(void);
+void* zalloc(size_t len);
 
 #include <debug.h>
 
+/*
 struct globals {
 	struct {
 		unsigned long tlb_addr;
@@ -61,10 +63,10 @@ struct globals {
 		unsigned long tlb_emerg;
 	} arch;
 };
-
 #define DECLARE_GLOBAL_DATA_PTR \
 	extern struct globals* gd
 
+  */
 #endif	/* __ASSEMBLY__ */
 
 #define ROUND(a,b)		(((a) + (b) - 1) & ~((b) - 1))

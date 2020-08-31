@@ -20,7 +20,7 @@ void mctl_await_completion(u32 *reg, u32 mask, u32 val)
 
 	while ((readl(reg) & mask) != val) {
 		if (timer_get_us() > tmo)
-			panic(31, "Timeout initialising DRAM\n");
+			panic(1, "Timeout initialising DRAM\n");
 	}
 }
 

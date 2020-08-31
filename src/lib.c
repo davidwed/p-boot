@@ -23,6 +23,7 @@
 
 #include <common.h>
 
+__attribute__((externally_visible))
 void *memcpy(void *dest, const void *src, size_t n)
 {
 	const uint8_t *s = src;
@@ -34,6 +35,7 @@ void *memcpy(void *dest, const void *src, size_t n)
 	return dest;
 }
 
+__attribute__((externally_visible))
 void *memset(void *dest, int c, size_t n)
 {
 	unsigned char *s = dest;

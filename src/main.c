@@ -42,46 +42,43 @@
 #include "lradc.h"
 #include <build-ver.h>
 
-//#define CONFIG_DEVMODE
+#define DRAM_MAIN         0x80000000
 
-// {{{ SRAM/DRAM layout
+// DRAM:
 
-/*
- * SRAM/DRAM layout during boot:
- *
- * 0x00044000 - ATF
- * 0x40000000 - DRAM start
- * 0x40080000 - Linux Image
- * 0x44000000 - Bootfs superblock + configuration table
- * 0x4a000000 - DTB
- * 0x4fe00000 - initramfs
- *
- * ATF maps 0x4a000000 - 0x4c000000 for main u-boot binary. We don't have u-boot
- * binary, but we want to place FDT there so that ATF can read it, without
- * setting up any new mappings. ATF needs to be patched to find the FDT there.
- */
-
-#define ATF_PA		0x44000
-#define LINUX_IMAGE_PA	0x40080000
-#define BOOTFS_SB_PA	0x44000000
-#define FDT_BLOB_PA	0x4a000000
-#define INITRAMFS_PA	0x4fe00000
-
-// }}}
 // {{{ Globals
 
-__attribute__((section(".lowdata")))
-static ulong t0;
+struct globals {
+	uint32_t dram_size;
+
+	// storage for stdout
+	char* log_start;
+	char* log_end;
+
+	uint8_t* heap_end;
+	ulong t0;
+
+	int board_rev;
+};
+
+struct globals* globals = NULL;
+
 
 // }}}
 // {{{ Simple heap implementation
 
-static uint8_t* heap_end;
 
 void* malloc(size_t len)
 {
-	void* p = heap_end;
-	heap_end += ALIGN(len, 64);
+	void* p = globals->heap_end;
+	globals->heap_end += ALIGN(len, 64);
+	return p;
+}
+
+void* zalloc(size_t len)
+{
+	void* p = malloc(len);
+	memset(p, 0, len);
 	return p;
 }
 
@@ -90,16 +87,39 @@ void free(void* p)
 }
 
 // }}}
+// {{{ DRAM
+
+#ifdef PBOOT_FDT_LOG
+
+#define TMP_LOG_START (char*)(uintptr_t)0x00018000
+
+// place log in SRAM C until DRAM is ready
+static char* tmp_log_end = TMP_LOG_START;
+
+void append_log(char c)
+{
+	if (c != '\r') {
+		if (globals)
+			*globals->log_end++ = c;
+		else
+			*tmp_log_end++ = c;
+	}
+}
+
+#endif
+
+// }}}
+
+// STORAGE:
+
 // {{{ U-Boot MMC driver wrapper
 
 /* This is called from sunxi_mmc_init. */
 
 struct mmc* mmc_create(const struct mmc_config *cfg, void *priv)
 {
-	struct mmc* mmc = malloc(sizeof *mmc);
+	struct mmc* mmc = zalloc(sizeof *mmc);
 	struct blk_desc *bdesc;
-
-	memset(mmc, 0, sizeof *mmc);
 
 	/* quick validation */
 	if (cfg == NULL || cfg->f_min == 0 ||
@@ -134,58 +154,45 @@ struct blk_desc *mmc_get_blk_desc(struct mmc *mmc)
 	return &mmc->block_dev;
 }
 
-static struct mmc* mmc_init_sd(void)
+static struct mmc* mmc_probe(int mmc_no)
 {
 	struct mmc* mmc;
 	unsigned int pin;
+	const char* name = mmc_no ? "eMMC" : "SD";
 	int ret;
 
-	/* SDC0: PF0-PF5 */
-	for (pin = SUNXI_GPF(0); pin <= SUNXI_GPF(5); pin++) {
-		sunxi_gpio_set_cfgpin(pin, SUNXI_GPF_SDC0);
-		sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
-		sunxi_gpio_set_drv(pin, 2);
+	if (mmc_no == 0) {
+		/* SDC0: PF0-PF5 */
+		for (pin = SUNXI_GPF(0); pin <= SUNXI_GPF(5); pin++) {
+			sunxi_gpio_set_cfgpin(pin, SUNXI_GPF_SDC0);
+			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
+			sunxi_gpio_set_drv(pin, 2);
+		}
+	} else {
+		/* SDC2: PC5-PC6, PC8-PC16 */
+		for (pin = SUNXI_GPC(5); pin <= SUNXI_GPC(16); pin++) {
+			if (pin == SUNXI_GPC(7))
+				continue;
+			sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
+			sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
+			sunxi_gpio_set_drv(pin, 2);
+		}
 	}
 
-	mmc = sunxi_mmc_init(0);
+	mmc = sunxi_mmc_init(mmc_no);
 	if (!mmc)
-		panic(1, "can't init mmc0\n");
+		goto err;
 
 	ret = mmc_init(mmc);
 	if (ret < 0)
-		panic(2, "can't init mmc0\n");
+		goto err;
 
-	printf("%d us: SD card ready\n", timer_get_boot_us() - t0);
-
+	printf("%d us: %s ready\n", timer_get_boot_us() - globals->t0, name);
 	return mmc;
-}
 
-static struct mmc* mmc_init_emmc(void)
-{
-	struct mmc* mmc;
-        unsigned int pin;
-	int ret;
-
-	/* SDC2: PC5-PC6, PC8-PC16 */
-	for (pin = SUNXI_GPC(5); pin <= SUNXI_GPC(16); pin++) {
-		if (pin == SUNXI_GPC(7))
-			continue;
-		sunxi_gpio_set_cfgpin(pin, SUNXI_GPC_SDC2);
-		sunxi_gpio_set_pull(pin, SUNXI_GPIO_PULL_UP);
-		sunxi_gpio_set_drv(pin, 2);
-	}
-
-	mmc = sunxi_mmc_init(2);
-	if (!mmc)
-		panic(3, "can't create mmc2\n");
-
-	ret = mmc_init(mmc);
-	if (ret < 0)
-		panic(4, "can't init mmc2\n");
-
-	printf("%d us: eMMC ready\n", timer_get_boot_us() - t0);
-
-	return mmc;
+err:
+	printf("Can't init %s\n", name);
+	return NULL;
 }
 
 /* read data from eMMC to memory, length will be rounded to the block size (512B) */
@@ -202,81 +209,239 @@ static bool mmc_read_data(struct mmc* mmc, uintptr_t dest,
 }
 
 // }}}
-// {{{ ATF entry/exit helpers
+// {{{ Bootfs helpers
 
-/*
- * Return point that will be jumped to from ATF.
- *
- * ATF will clobber anything in SRAM A1 above 0x1000, so we need to put
- * this function, all functions this calls, and all static data this uses
- * into .lowtext and .lowdata sections.
- */
-#ifndef CONFIG_ATF_TO_LINUX
-__attribute__((section(".lowtext")))
-void atf_exit_finish(void)
+struct dos_partition {
+	uint8_t boot_ind;         /* 0x80 - active                        */
+	uint8_t head;             /* starting head                        */
+	uint8_t sector;           /* starting sector                      */
+	uint8_t cyl;              /* starting cylinder                    */
+	uint8_t sys_ind;          /* What partition type                  */
+	uint8_t end_head;         /* end head                             */
+	uint8_t end_sector;       /* end sector                           */
+	uint8_t end_cyl;          /* end cylinder                         */
+	uint32_t start;           /* starting sector counting from 0      */
+	uint32_t size;            /* nr of sectors in partition           */
+};
+
+struct part_info {
+	uint64_t start;
+	uint64_t size;
+	bool is_boot;
+	int idx;
+};
+
+struct bootfs {
+	struct mmc* mmc;
+	uint64_t mmc_offset;
+
+	struct bootfs_sb* sb;
+	// the following 2 pointers overlap
+	struct bootfs_conf* confs_blocks;
+	struct bootfs_files* files_blocks;
+};
+
+static struct bootfs* bootfs_open(struct mmc* mmc)
 {
-	printf("%d us: ATF done, booting Linux...\n", timer_get_boot_us() - t0);
+	int part_count = 0;
+	struct part_info* parts = malloc(4 * sizeof(*parts));
+	uint8_t* buf = malloc(512);
+	struct bootfs* fs = NULL;
 
-	armv8_switch_to_el2(FDT_BLOB_PA, 0, 0, 0,
-			    LINUX_IMAGE_PA, ES_TO_AARCH64);
+        // collect a list of partitions
 
-	panic(5, "BAD\n");
+	if (!mmc_read_data(mmc, (uintptr_t)buf, 0, 512))
+		return NULL;
+
+	if (buf[0x1fe] != 0x55 || buf[0x1ff] != 0xaa)
+		return NULL;
+
+	struct dos_partition *p = (struct dos_partition *)&buf[0x1be];
+	for (int slot = 0; slot < 4; ++slot, ++p) {
+		if (p->boot_ind != 0 && p->boot_ind != 0x80)
+			return NULL;
+
+		if (p->sys_ind == 0x83) {
+			struct part_info* pi = &parts[part_count++];
+
+			pi->idx = slot;
+			pi->start = 512ull * __le32_to_cpu(p->start);
+			pi->size = 512ull * __le32_to_cpu(p->size);
+			pi->is_boot = p->boot_ind == 0x80;
+		}
+
+		//XXX: extended partitions are not supported yet
+		//if (p->sys_ind == 0x5 || p->sys_ind == 0xf || p->sys_ind == 0x85) {
+		//}
+	}
+
+	// go through partitions list twice (once through boot partitions, then
+	// through others)
+
+	fs = malloc(sizeof *fs);
+	fs->mmc = mmc;
+	fs->sb = malloc(2048 * 33);
+	fs->confs_blocks = (void*)(fs->sb + 1);
+	fs->files_blocks = (void*)(fs->sb + 1);
+
+	printf("Searching for bootfs:\n");
+	for (unsigned i = 0; i < part_count * 2; i++) {
+		unsigned try = parts[i].is_boot ^ (i / part_count);
+		struct part_info* pi = &parts[i % part_count];
+
+		if (try)
+			printf("  %s:%d %spart. (%llu MiB)\n",
+			       mmc->cfg->name, pi->idx,
+			       pi->is_boot ? "boot " : "",
+			       pi->size / 1024 / 1024);
+
+		if (try && mmc_read_data(mmc, (uintptr_t)fs->sb, pi->start, 33 * 2048) &&
+		    !memcmp(fs->sb->magic, ":BOOTFS:", 8)) {
+			fs->mmc_offset = pi->start;
+			return fs;
+		}
+	}
+
+
+	return NULL;
 }
 
-/* defined in start.S */
-extern void atf_exit(void);
-#endif
+struct bootsel {
+	int def; // -1 = undefined
+	int next; // -1 = undefined
+};
 
-static inline void raw_write_daif(unsigned int daif)
+static void rtc_bootsel_get(struct bootsel* sel)
 {
-        __asm__ __volatile__("msr DAIF, %0\n\t" : : "r" (daif) : "memory");
+        uint32_t v = readl((ulong)SUNXI_RTC_BASE + 0x100);
+
+	sel->next = (int)((v >> 8) & 0xff) - 1;
+	sel->def = (int)(v & 0xff) - 1;
 }
 
-static void jump_to_atf(void)
+static void rtc_bootsel_set(struct bootsel* sel)
 {
-	void (*atf_entry_point)(struct entry_point_info *ep_info,
-				void *fdt_blob, uintptr_t magic);
-	/*
-	 * Holds information passed to ATF about where to jump after ATF
-	 * finishes.
-	 */
-	static struct entry_point_info* bl33_ep_info;
+	uint32_t v = 0;
 
-	printf("%d us: jumping to ATF\n", timer_get_boot_us() - t0);
+	v |= ((sel->next + 1) & 0xff) << 8;
+	v |= ((sel->def + 1) & 0xff);
 
-	bl33_ep_info = malloc(sizeof *bl33_ep_info);
-	memset(bl33_ep_info, 0, sizeof *bl33_ep_info);
+	writel(v, (ulong)SUNXI_RTC_BASE + 0x100);
+}
 
-	SET_PARAM_HEAD(bl33_ep_info, ATF_PARAM_EP, ATF_VERSION_1,
-		       ATF_EP_NON_SECURE);
+static struct bootfs_conf* bootfs_select_configuration(struct bootfs* fs)
+{
+	struct bootfs_conf* bc = fs->confs_blocks;
+	const char* src = "default";
+	const char* status = "ok";
+	struct bootfs_conf* sel = NULL;
+	unsigned bootsel;
+	struct bootsel rtcsel;
 
-#ifdef CONFIG_ATF_TO_LINUX
-        /* BL33 (Linux) expects to receive FDT blob through x0 */
-	bl33_ep_info->args.arg0 = FDT_BLOB_PA;
-	bl33_ep_info->pc = LINUX_IMAGE_PA;
-	bl33_ep_info->spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
-				     DISABLE_ALL_EXECPTIONS);
-#else
-	bl33_ep_info->pc = (uintptr_t)atf_exit;
-	bl33_ep_info->spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
-				     DISABLE_ALL_EXECPTIONS);
+	/* select default boot configuration */
+	//bootsel = __be32_to_cpu(fs->sb->default_conf);
+
+	/* override boot configuration based on RTC data register */
+	rtc_bootsel_get(&rtcsel);
+	if (rtcsel.next >= 0) {
+		rtcsel.next = -1;
+		bootsel = rtcsel.next;
+		rtc_bootsel_set(&rtcsel);
+		src = "RTC next";
+	} else if (rtcsel.def >= 0) {
+		bootsel = rtcsel.def;
+		src = "RTC def";
+	} else {
+		return NULL;
+	}
+
+#if 0
+	/* override boot configuration based on PMIC data register */
+	int reg = pmic_read_data(0);
+	if (reg >= 0 && (reg & 0x7f) > 0) {
+		bootsel = (reg & 0x7f) - 1;
+		/* reset the PMIC register */
+                if (reg & BIT(7))
+                        pmic_write_data(0, 0);
+		src = "PMIC data";
+	}
 #endif
 
-	//disable_interrupts();
-	icache_disable();
-	invalidate_icache_all();
-	dcache_disable();
-	invalidate_dcache_all();
+	if (bootsel > 32) {
+		status = "too big";
+		goto out;
+	}
 
-	raw_write_daif(SPSR_EXCEPTION_MASK);
+	if (memcmp(bc[bootsel].magic, ":BFCONF:", 8)) {
+		status = "missing";
+		goto out;
+	}
 
-	atf_entry_point = (void*)(uintptr_t)ATF_PA;
-	atf_entry_point((void *)bl33_ep_info, (void *)(uintptr_t)FDT_BLOB_PA, 0xb001);
+	sel = &bc[bootsel];
 
-	panic(6, "ATF entry failed\n");
+out:
+	printf("Boot config %u (%s): %s\n", bootsel, src, status);
+	if (sel)
+		printf("Config name: %s\n", (char*)sel->name);
+
+	return sel;
+}
+
+static ssize_t bootfs_load_image(struct bootfs* fs, uint32_t dest, uint64_t off, uint32_t len, const char* name)
+{
+	if (len == 0)
+		return 0;
+	if (off % 512)
+		return -1;
+	if (len > 512 * 1024 * 1024)
+		return -1;
+
+	if (dest == 0)
+		return len;
+
+	ulong s = timer_get_boot_us();
+
+	if (!mmc_read_data(fs->mmc, dest, fs->mmc_offset + off, len))
+		return -1;
+
+	printf("Load %s (%u KiB) => 0x%x (%llu KiB/s)\n",
+	       name, len / 1024, dest,
+	       (uint64_t)len * 1000000 / (timer_get_boot_us() - s) / 1024);
+
+	return len;
+}
+
+static ssize_t bootfs_load_file(struct bootfs* fs, uint32_t dest, const char* name)
+{
+	struct bootfs_files* bf = fs->files_blocks;
+
+	for (int i = 0; i < 32; i++) {
+		if (memcmp(bf[i].magic, ":BFILES:", 8))
+			continue;
+
+		for (int j = 0; j < ARRAY_SIZE(bf[i].files); j++) {
+			struct bootfs_file* f = &bf[i].files[j];
+
+			if (!f->name[0])
+                                break;
+
+			if (strcmp((char*)f->name, name))
+				continue;
+
+			uint64_t img_off = __be32_to_cpu(f->data_off);
+			uint32_t img_len = __be32_to_cpu(f->data_len);
+
+			return bootfs_load_image(fs, dest, img_off, img_len, (char*)f->name);
+		}
+	}
+
+	return -1;
 }
 
 // }}}
+
+// SoC/board features:
+
 // {{{ LEDs control
 
 static void green_led_set(bool on)
@@ -287,50 +452,6 @@ static void green_led_set(bool on)
 static void red_led_set(bool on)
 {
         gpio_direction_output(SUNXI_GPD(19), on); // red on
-}
-
-// }}}
-// {{{ DRAM
-
-ulong dram_size;
-
-#ifdef PBOOT_FDT_LOG
-
-// place log in SRAM C until DRAM is ready
-static char* log_end = (char*)(uintptr_t)0x00018000;
-static char* log_start = (char*)(uintptr_t)0x00018000;
-
-void append_log(char c)
-{
-	if (c != '\r')
-		*log_end++ = c;
-}
-
-#endif
-
-static void dram_init(void)
-{
-	dram_size = sunxi_dram_init();
-	if (!dram_size)
-		panic(8, "DRAM not detected");
-
-	// 256MiB from end of DRAM is our heap
-	heap_end = (void*)(CONFIG_SYS_SDRAM_BASE + dram_size - 1024*1024*256);
-
-#ifdef PBOOT_FDT_LOG
-	// allocate 128 KiB for the log and move it to DRAM from SRAM C
-	char* new_log = malloc(128 * 1024);
-	unsigned log_size = log_end - log_start;
-	memcpy(new_log, log_start, log_size);
-	log_end = log_start = new_log;
-	log_end += log_size;
-#endif
-
-	icache_enable();
-	mmu_setup(dram_size);
-
-	printf("%d us: DRAM: %u MiB\n", timer_get_boot_us() - t0,
-	       (unsigned)(dram_size >> 20));
 }
 
 // }}}
@@ -394,22 +515,59 @@ static uint32_t get_boot_source(void)
 }
 
 // }}}
-// {{{ PMIC initialization
+// {{{ RTC
 
-static void pmic_enable_pinephone_lcd_power(void)
+static void rtc_fixup(void)
 {
-	// dldo1 3.3V
-	pmic_write(0x15, 0x1a);
-	pmic_setbits(0x12, BIT(3));
+        // check if RTC runs at lower value than build date, move to build date
+        uint32_t ymd = readl((ulong)SUNXI_RTC_BASE + 0x10);
+        uint32_t hms = readl((ulong)SUNXI_RTC_BASE + 0x14);
+        uint32_t rtc_year = 1970 + ((ymd >> 16) & 0x3f);
+        if (rtc_year < BUILD_YEAR) {
+                printf("RTC: %08x %08x (<BUILD_DATE)\n", ymd, hms);
 
-	// dldo2 3.3V
-//	pmic_write(0x16, 0x1a);
-//	pmic_setbits(0x12, BIT(4));
+                ymd = ((BUILD_YEAR - 1970) & 0x3f) << 16;
+                ymd |= (BUILD_MONTH << 8) | BUILD_DAY;
 
-	// ldo_io0 3.3V
-//	pmic_write(0x91, 0x1a); // set LDO voltage to 3.3V
-//	pmic_write(0x90, 0x03); // enable LDO mode on GPIO0
+                writel(ymd, (ulong)SUNXI_RTC_BASE + 0x10);
+                writel(0, (ulong)SUNXI_RTC_BASE + 0x14);
+        }
 }
+
+// }}}
+// {{{ Watchdog
+
+static void soc_reset(void)
+{
+        /* Set the watchdog for its shortest interval (.5s) and wait */
+        writel(1, (ulong)(SUNXI_TIMER_BASE + 0xB4));
+        writel(1, (ulong)(SUNXI_TIMER_BASE + 0xB8));
+        writel((0xa57 << 1) | 1, (ulong)(SUNXI_TIMER_BASE + 0xB0));
+
+        udelay(1000000);
+        panic(4, "SoC reset failed");
+}
+
+static void wdog_ping(void)
+{
+	// reset system
+	writel(1, (ulong)(SUNXI_TIMER_BASE + 0xB4));
+
+	// enable and set to 10s
+	writel(0x81, (ulong)(SUNXI_TIMER_BASE + 0xB8));
+
+	// reset watchdog
+	writel((0xa57 << 1) | 1, (ulong)(SUNXI_TIMER_BASE + 0xB0));
+}
+
+static void wdog_disable(void)
+{
+	// enable and set to 10s
+	writel(0, (ulong)(SUNXI_TIMER_BASE + 0xB8));
+}
+
+// }}}
+// {{{ PMIC initialization
 
 static void pmic_setup_bat_temp_sensor(void)
 {
@@ -441,158 +599,31 @@ static void pmic_setup_ocv_table(void)
 }
 
 // }}}
-// {{{ Bootfs helpers
+// {{{ Detect PinePhone hardware
 
-struct dos_partition {
-	uint8_t boot_ind;         /* 0x80 - active                        */
-	uint8_t head;             /* starting head                        */
-	uint8_t sector;           /* starting sector                      */
-	uint8_t cyl;              /* starting cylinder                    */
-	uint8_t sys_ind;          /* What partition type                  */
-	uint8_t end_head;         /* end head                             */
-	uint8_t end_sector;       /* end sector                           */
-	uint8_t end_cyl;          /* end cylinder                         */
-	uint32_t start;           /* starting sector counting from 0      */
-	uint32_t size;            /* nr of sectors in partition           */
-};
-
-struct part_info {
-	uint64_t start;
-	uint64_t size;
-	bool is_boot;
-	int idx;
-};
-
-static int bootsel;
-
-static bool bootfs_sb_valid(void)
+static int detect_pinephone_revision(void)
 {
-	struct bootfs_sb* sb = (struct bootfs_sb*)(uintptr_t)BOOTFS_SB_PA;
+	int ret = 1;
 
-	return !memcmp(sb->magic, ":BOOTFS:", 8);
-}
+	sunxi_gpio_set_pull(SUNXI_GPL(6), SUNXI_GPIO_PULL_UP);
+	sunxi_gpio_set_cfgpin(SUNXI_GPL(6), SUNXI_GPIO_INPUT);
 
-static bool bootfs_load(struct mmc* mmc, struct part_info* pi)
-{
-	printf("Trying %s partition located at 0x%llx(%llu MiB) (part %d)\n",
-			pi->is_boot ? "boot" : "normal",
-			pi->start, pi->size / 1024 / 1024, pi->idx);
+	udelay(100);
 
-	return mmc_read_data(mmc, BOOTFS_SB_PA, pi->start, 33 * 2048) && bootfs_sb_valid();
-}
+	/* PL6 is pulled low by the modem on v1.2. */
+	if (!gpio_get_value(SUNXI_GPL(6)))
+		ret = 2;
 
-static bool bootfs_locate(struct mmc* mmc, uint64_t* offset)
-{
-	int part_count = 0;
-	struct part_info* parts = malloc(4 * sizeof(*parts));
+	sunxi_gpio_set_cfgpin(SUNXI_GPL(6), SUNXI_GPIO_DISABLE);
+	sunxi_gpio_set_pull(SUNXI_GPL(6), SUNXI_GPIO_PULL_DISABLE);
 
-	if (!mmc_read_data(mmc, BOOTFS_SB_PA, 0, 512))
-		return false;
-
-	uint8_t* buf = (uint8_t*)(uintptr_t)BOOTFS_SB_PA;
-	if (buf[0x1fe] != 0x55 || buf[0x1ff] != 0xaa)
-		return false;
-
-	struct dos_partition *p = (struct dos_partition *)&buf[0x1be];
-	for (int slot = 0; slot < 4; ++slot, ++p) {
-		if (p->boot_ind != 0 && p->boot_ind != 0x80)
-			return false;
-
-		if (p->sys_ind == 0x83) {
-			struct part_info* pi = &parts[part_count++];
-
-			pi->idx = slot;
-			pi->start = 512ull * __le32_to_cpu(p->start);
-			pi->size = 512ull * __le32_to_cpu(p->size);
-			pi->is_boot = p->boot_ind == 0x80;
-		}
-
-		//XXX: extended partitions are not supported yet
-		//if (p->sys_ind == 0x5 || p->sys_ind == 0xf || p->sys_ind == 0x85) {
-		//}
-	}
-
-	for (int i = 0; i < part_count; i++) {
-		if (parts[i].is_boot && bootfs_load(mmc, &parts[i])) {
-			*offset = parts[i].start;
-			return true;
-		}
-	}
-
-	for (int i = 0; i < part_count; i++) {
-		if (!parts[i].is_boot && bootfs_load(mmc, &parts[i])) {
-			*offset = parts[i].start;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static struct bootfs_conf* bootfs_select_configuration(void)
-{
-	struct bootfs_sb* sb = (struct bootfs_sb*)(uintptr_t)BOOTFS_SB_PA;
-	struct bootfs_conf* bc = (struct bootfs_conf*)(uintptr_t)(BOOTFS_SB_PA + 2048);
-
-	if (!bootfs_sb_valid())
-		panic(10, "BOOTFS not found");
-
-	/* read volume keys status */
-	int key = lradc_get_pressed_key();
-	lradc_disable();
-
-	/* select default boot configuration */
-	bootsel = __be32_to_cpu(sb->default_conf);
-
-	/* override boot configuration based on RTC data register */
-        uint32_t rtc_data = readl((ulong)SUNXI_RTC_BASE + 0x100);
-        if ((rtc_data & 0x7f) > 0) {
-		bootsel = (rtc_data & 0x7f) - 1;
-		/* reset the PMIC register if bit 7 is set */
-                if (rtc_data & BIT(7))
-                        writel(0, (ulong)SUNXI_RTC_BASE + 0x100);
-		printf("Bootsel override via RTC data[0] to %d\n", bootsel);
-        }
-
-	/* override boot configuration based on PMIC data register */
-	int reg = pmic_read_data(0);
-	if (reg >= 0 && (reg & 0x7f) > 0) {
-		bootsel = (reg & 0x7f) - 1;
-		/* reset the PMIC register */
-                if (reg & BIT(7))
-                        pmic_write_data(0, 0);
-		printf("Bootsel override via PMIC data[0] to %d\n", bootsel);
-	}
-
-	/* override boot config based on volume keys */
-	if (key == KEY_VOLUMEDOWN)
-		bootsel = 0;
-	else if (key == KEY_VOLUMEUP)
-		bootsel = 1;
-
-	if (bootsel > 32)
-		panic(11, "Bootsel out of range (%d)\n", bootsel);
-
-	if (memcmp(bc[bootsel].magic, ":BFCONF:", 8)) {
-		printf("Boot option %d not found\n", bootsel);
-		bootsel = 1;
-	}
-	if (memcmp(bc[bootsel].magic, ":BFCONF:", 8)) {
-		printf("Boot option %d not found\n", bootsel);
-		bootsel = 0;
-	}
-	if (memcmp(bc[bootsel].magic, ":BFCONF:", 8)) {
-		printf("Boot option %d not found\n", bootsel);
-		panic(12, "Nothing to boot\n");
-	}
-
-	printf("%d us: Booting configuration %d (%s)\n",
-	       timer_get_boot_us() - t0, bootsel, (char*)bc[bootsel].name);
-
-	return &bc[bootsel];
+	return ret;
 }
 
 // }}}
+
+// Booting:
+
 // {{{ FDT
 
 static const char* fdt_get_alias_node(void* fdt, const char* alias)
@@ -685,33 +716,9 @@ static void fdt_fixup_bt(void* fdt)
                 printf("BT local MAC addr update failed err=%d\n", ret);
 }
 
-static char* fixup_bootargs(char* bootargs, bool is_sd)
+static void fdt_add_pboot_data(void* fdt_blob, struct bootfs* fs)
 {
-	char *out, *end;
-	int len;
-
-	len = strlen(bootargs);
-	out = malloc(len + 1000);
-	memcpy(out, bootargs, len);
-	end = out + len;
-
-	memcpy(end, " bootdev=", 9);
-	end += 9;
-	if (is_sd) {
-		memcpy(end, "sd", 2);
-		end += 2;
-	} else {
-		memcpy(end, "emmc", 4);
-		end += 4;
-	}
-
-	*end = 0;
-	return out;
-}
-
-static void fdt_add_pboot_data(void* fdt_blob)
-{
-	struct bootfs_conf* bc = (struct bootfs_conf*)(uintptr_t)(BOOTFS_SB_PA + 2048);
+	struct bootfs_conf* bc = fs->confs_blocks;
 	char* configs = malloc(32 * 256);
 	char* p = configs;
 
@@ -746,66 +753,300 @@ static void fdt_add_pboot_data(void* fdt_blob)
 
 #ifdef PBOOT_FDT_LOG
 	fdt_setprop(fdt_blob, pboot_off, "log",
-		    log_start, log_end - log_start);
+		    globals->log_start, globals->log_end - globals->log_start);
 #endif
 }
 
 // }}}
-// {{{ RTC
-
-static void rtc_fixup(void)
-{
-        // check if RTC runs at lower value than build date, move to build date
-        uint32_t ymd = readl((ulong)SUNXI_RTC_BASE + 0x10);
-        uint32_t hms = readl((ulong)SUNXI_RTC_BASE + 0x14);
-        uint32_t rtc_year = 1970 + ((ymd >> 16) & 0x3f);
-        if (rtc_year < BUILD_YEAR) {
-                printf("RTC: %08x %08x (<BUILD_DATE)\n", ymd, hms);
-
-                ymd = ((BUILD_YEAR - 1970) & 0x3f) << 16;
-                ymd |= (BUILD_MONTH << 8) | BUILD_DAY;
-
-                writel(ymd, (ulong)SUNXI_RTC_BASE + 0x10);
-                writel(0, (ulong)SUNXI_RTC_BASE + 0x14);
-        }
-}
+// {{{ ATF entry/exit helpers
 
 // }}}
-// {{{ Watchdog
+// {{{ Linux boot
 
-static void soc_reset(void)
+/*
+ * SRAM/DRAM layout during boot:
+ *
+ * 0x00044000 - ATF
+ * 0x40080000 - Linux Image
+ * 0x4a000000 - DTB
+ * 0x4fe00000 - initramfs
+ *
+ * ATF maps 0x4a000000 - 0x4c000000 for main u-boot binary. We don't have u-boot
+ * binary, but we want to place FDT there so that ATF can read it, without
+ * setting up any new mappings. ATF needs to be patched to find the FDT there.
+ */
+
+#define ATF_PA		0x44000
+#define LINUX_IMAGE_PA	0x40080000
+#define FDT_BLOB_PA	0x4a000000
+#define INITRAMFS_PA	0x4fe00000
+
+enum {
+	IMAGE_ATF,
+	IMAGE_FDT,
+	IMAGE_LINUX,
+	// put required images above this line
+	IMAGE_INITRD,
+	IMAGE_COUNT,
+};
+
+struct boot
 {
-        /* Set the watchdog for its shortest interval (.5s) and wait */
-        writel(1, (ulong)(SUNXI_TIMER_BASE + 0xB4));
-        writel(1, (ulong)(SUNXI_TIMER_BASE + 0xB8));
-        writel((0xa57 << 1) | 1, (ulong)(SUNXI_TIMER_BASE + 0xB0));
+	uint32_t loaded_images;
+	uint64_t image_offsets[IMAGE_COUNT];
+	uint32_t image_sizes[IMAGE_COUNT];
+	uint32_t image_dests[IMAGE_COUNT];
+	void* fdt;
+	char bootargs[4096];
+	struct bootfs* fs;
+	struct bootfs_conf* conf;
+};
 
-        udelay(1000000);
-        panic(13, "SoC reset failed");
+static const char* img_names[] = {
+	[IMAGE_ATF] = "ATF(+SCP)",
+	[IMAGE_FDT] = "FDT",
+	[IMAGE_LINUX] = "Linux",
+	[IMAGE_INITRD] = "Initrd",
+};
+
+bool boot_prepare(struct boot* boot, struct bootfs* fs, struct bootfs_conf* bc)
+{
+	// read the images from the selected table entry to memory
+        memset(boot, 0, sizeof *boot);
+
+	boot->fs = fs;
+	boot->conf = bc;
+
+	for (int j = 0; j < ARRAY_SIZE(bc->images); j++) {
+		struct bootfs_image* im = &bc->images[j];
+		unsigned type = __be32_to_cpu(im->type);
+		uintptr_t dest = 0;
+		int image_kind = -1;
+
+		switch (type) {
+			case 'A':
+				dest = ATF_PA;
+				image_kind = IMAGE_ATF;
+				break;
+			case 'D':
+				dest = FDT_BLOB_PA;
+				image_kind = IMAGE_FDT;
+				break;
+			case 'L':
+				dest = LINUX_IMAGE_PA;
+				image_kind = IMAGE_LINUX;
+				break;
+			case 'I':
+				dest = INITRAMFS_PA;
+				image_kind = IMAGE_INITRD;
+				break;
+		}
+
+		if (image_kind < 0)
+			continue;
+
+		boot->image_dests[image_kind] = dest;
+		boot->image_offsets[image_kind] = __be32_to_cpu(im->data_off);
+		boot->image_sizes[image_kind] = __be32_to_cpu(im->data_len);
+		boot->loaded_images |= 1 << image_kind;
+	}
+
+	bool missing = false;
+	for (int i = 0; i < IMAGE_INITRD; i++) {
+		if (!(boot->loaded_images & (1 << i))) {
+			printf("Missing %s image\n", img_names[i]);
+			missing = true;
+		}
+	}
+
+	if (missing)
+		return false;
+
+	for (int i = 0; i < IMAGE_COUNT; i++) {
+		if (!(boot->loaded_images & (1 << i)))
+			continue;
+
+		ssize_t size = bootfs_load_image(fs, boot->image_dests[i],
+						 boot->image_offsets[i],
+						 boot->image_sizes[i],
+						 img_names[i]);
+		if (size < 0)
+			return false;
+	}
+
+	boot->fdt = (void*)(uintptr_t)boot->image_dests[IMAGE_FDT];
+
+        int err = fdt_check_header(boot->fdt);
+        if (err < 0) {
+                printf("Bad FDT hedaer: %s\n", fdt_strerror(err));
+		return false;
+	}
+
+	err = fdt_increase_size(boot->fdt, 1024 * 256); // generous
+        if (err < 0) {
+                printf("Can't expand FDT: %s\n", fdt_strerror(err));
+		return false;
+	}
+
+	memcpy(boot->bootargs, bc->boot_args, strlen((char*)bc->boot_args) + 1);
+
+        int chosen_off = fdt_find_or_add_subnode(boot->fdt, 0, "chosen");
+        if (chosen_off < 0) {
+                printf("Can't create /chosen node\n");
+		return false;
+	}
+
+	return true;
 }
 
-// }}}
-// {{{ Detect PinePhone hardware
-
-static int detect_pinephone_revision(void)
+void boot_append_bootargs(struct boot* boot, char* bootargs)
 {
-	int ret = 1;
+	int len = strlen(boot->bootargs);
 
-	prcm_apb0_enable(PRCM_APB0_GATE_PIO);
-	sunxi_gpio_set_pull(SUNXI_GPL(6), SUNXI_GPIO_PULL_UP);
-	sunxi_gpio_set_cfgpin(SUNXI_GPL(6), SUNXI_GPIO_INPUT);
+	boot->bootargs[len] = ' ';
+	memcpy(boot->bootargs + len + 1, bootargs, strlen(bootargs) + 1);
+}
 
-	udelay(100);
+int fdt_setup_framebuffer(struct boot* boot, uint32_t fb_addr)
+{
+	int ret;
+	void* fdt = boot->fdt;
+	uint32_t size = 1440 * 720 * 4;
+	fdt32_t cells[] = {
+		cpu_to_fdt32(fb_addr),
+		cpu_to_fdt32(size),
+	};
 
-	/* PL6 is pulled low by the modem on v1.2. */
-	if (!gpio_get_value(SUNXI_GPL(6)))
-		ret = 2;
+        int chosen_off = fdt_find_or_add_subnode(boot->fdt, 0, "chosen");
+        if (chosen_off < 0) {
+                printf("Can't create /chosen node\n");
+		return false;
+	}
 
-	sunxi_gpio_set_cfgpin(SUNXI_GPL(6), SUNXI_GPIO_DISABLE);
-	sunxi_gpio_set_pull(SUNXI_GPL(6), SUNXI_GPIO_PULL_DISABLE);
-	prcm_apb0_disable(PRCM_APB0_GATE_PIO);
+        ret = fdt_setprop(fdt, chosen_off, "p-boot,framebuffer", cells, sizeof cells);
+        if (ret)
+		goto err;
 
-	return ret;
+        ret = fdt_setprop_u32(fdt, chosen_off, "p-boot,framebuffer-start", fb_addr);
+        if (ret)
+		goto err;
+
+	ret = fdt_add_mem_rsv(fdt, fb_addr, size);
+        if (ret)
+		goto err;
+
+	return 0;
+
+err:
+	printf("simplefb setup failed err=%d\n", ret);
+	return -1;
+}
+
+bool boot_finalize(struct boot* boot)
+{
+	int err;
+	void* fdt = boot->fdt;
+
+        // setup FDT
+	fdt_fixup_wifi(fdt);
+
+	// PinePhone doesn't need BT local address fixup
+	//fdt_fixup_bt(fdt);
+	fdt_add_pboot_data(fdt, boot->fs);
+
+	//printf("args: %s\n", boot->bootargs);
+
+        int chosen_off = fdt_find_or_add_subnode(boot->fdt, 0, "chosen");
+        if (chosen_off < 0) {
+                printf("Can't create /chosen node\n");
+		return false;
+	}
+
+	err = fdt_setprop(fdt, chosen_off, "bootargs",
+			  boot->bootargs, strlen(boot->bootargs) + 1);
+	if (err < 0) {
+		printf("Can't set bootargs %d (%s)\n", err, boot->bootargs);
+		return false;
+	}
+
+	err = fdt_fixup_memory(fdt, 0x40000000, globals->dram_size);
+	if (err < 0) {
+		printf("Can't set memory range\n");
+		return false;
+	}
+
+	if (boot->loaded_images & (1 << IMAGE_INITRD)) {
+		uint32_t initramfs_start = boot->image_dests[IMAGE_INITRD];
+		uint32_t initramfs_end = initramfs_start + boot->image_sizes[IMAGE_INITRD];
+
+		err = fdt_initrd(fdt, initramfs_start, initramfs_end);
+		if (err < 0) {
+			printf("Can't setup initrd\n");
+			return false;
+		}
+	}
+
+	// this also sets up reservation for FDT blob
+	err = fdt_shrink_to_minimum(fdt, 0);
+	if (err < 0) {
+		printf("Can't shrink fdt\n");
+		return false;
+	}
+
+	return true;
+}
+
+static inline void raw_write_daif(unsigned int daif)
+{
+        __asm__ __volatile__("msr DAIF, %0\n\t" : : "r" (daif) : "memory");
+}
+
+static void jump_to_atf(void)
+{
+	void (*atf_entry_point)(struct entry_point_info *ep_info,
+				void *fdt_blob, uintptr_t magic);
+	/*
+	 * Holds information passed to ATF about where to jump after ATF
+	 * finishes.
+	 */
+	static struct entry_point_info* bl33_ep_info;
+
+	printf("%d us: jumping to ATF\n", timer_get_boot_us() - globals->t0);
+
+	bl33_ep_info = zalloc(sizeof *bl33_ep_info);
+
+	SET_PARAM_HEAD(bl33_ep_info, ATF_PARAM_EP, ATF_VERSION_1,
+		       ATF_EP_NON_SECURE);
+
+        /* BL33 (Linux) expects to receive FDT blob through x0 */
+	bl33_ep_info->args.arg0 = FDT_BLOB_PA;
+	bl33_ep_info->pc = LINUX_IMAGE_PA;
+	bl33_ep_info->spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
+				     DISABLE_ALL_EXECPTIONS);
+
+	//disable_interrupts();
+	icache_disable();
+	invalidate_icache_all();
+	dcache_disable();
+	invalidate_dcache_all();
+
+	raw_write_daif(SPSR_EXCEPTION_MASK);
+
+	atf_entry_point = (void*)(uintptr_t)ATF_PA;
+	atf_entry_point((void *)bl33_ep_info, (void *)(uintptr_t)FDT_BLOB_PA, 0xb001);
+
+	panic(5, "ATF entry failed\n");
+}
+
+void boot_perform(struct boot* boot)
+{
+	// mark end of p-boot by switching to red led
+        green_led_set(0);
+        red_led_set(1);
+
+	lradc_disable();
+	wdog_disable();
+	jump_to_atf();
 }
 
 // }}}
@@ -835,28 +1076,20 @@ void panic_shutdown(uint32_t code)
         red_led_set(1);
         udelay(500000);
 
-#ifdef CONFIG_DEVMODE
-	puts("Reset!\n");
-	soc_reset();
-#else
 	puts("Power off!\n");
 	pmic_poweroff();
-#endif
 }
 
-void main(void)
+void main_sram_only(void)
 {
-	struct mmc* mmc;
-	int board_rev, ret;
-
-	t0 = timer_get_boot_us();
+	int ret;
+	uint64_t t0 = timer_get_boot_us();
 
 	green_led_set(1);
 	ccu_init();
 	console_init();
 	lradc_enable();
-
-	board_rev = detect_pinephone_revision();
+	wdog_ping();
 
 	puts("p-boot (version " VERSION " built " BUILD_DATE ")\n");
 
@@ -864,161 +1097,130 @@ void main(void)
         // in case of panic()
 	ret = rsb_init();
 	if (ret)
-		panic(9, "rsb init failed %d\n", ret);
+		panic(6, "RSB failed %d\n", ret);
 
 	pmic_init();
-	printf("%d us: PMIC ready\n", timer_get_boot_us() - t0);
+	printf("PMIC ready\n");
 
-	dram_init();
+	uint64_t dram_size = sunxi_dram_init();
+	if (!dram_size)
+		panic(3, "DRAM not detected");
+
+	// 256MiB from end of DRAM is our heap
+	uint8_t* heap_end = (void*)(CONFIG_SYS_SDRAM_BASE + dram_size - 256 * 1024 * 1024);
+	globals = (void*)heap_end;
+	heap_end += ALIGN(sizeof *globals, 64);
+	memset(globals, 0, sizeof *globals);
+
+	globals->t0 = t0;
+	globals->heap_end = heap_end;
+	globals->dram_size = dram_size;
+
+	icache_enable();
+	mmu_setup(dram_size);
+
+#ifdef PBOOT_FDT_LOG
+	// allocate 128 KiB for the log and move it to DRAM from SRAM C
+	char* new_log = malloc(128 * 1024);
+	unsigned log_size = tmp_log_end - TMP_LOG_START;
+	memcpy(new_log, TMP_LOG_START, log_size);
+	globals->log_end = globals->log_start = new_log;
+	globals->log_end += log_size;
+#endif
+
+	printf("%d us: DRAM: %u MiB\n", timer_get_boot_us() - t0,
+	       (unsigned)(dram_size >> 20));
+
 	ccu_upclock();
-
-	uint32_t sid[4];
-	get_soc_id(sid);
-	printf("SoC ID: %08x:%08x:%08x:%08x\nBoard rev: 1.%d\n", sid[0], sid[1], sid[2], sid[3], board_rev);
-
-        rtc_fixup();
-
-	// enable LCD power early (150ms powerup requirement happens while we read data from eMMC)
-	pmic_enable_pinephone_lcd_power();
-	pmic_setup_bat_temp_sensor();
-	pmic_setup_ocv_table();
-
-	// set CPU voltage to high and increase the clock to the highest OPP
 	udelay(160);
 	clock_set_pll1(1152000000);
 
+	void* dram_stack = malloc(128 * 1024);
+	extern uint32_t _dram_stack_top;
+	_dram_stack_top = (uintptr_t)((uint8_t*)dram_stack + 128 * 1024);
+}
+
+static bool reboot_loop = false;
+
+static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc)
+{
+	//
+	// Normal boot
+	//
+
+	struct boot* boot = zalloc(sizeof *boot);
+	if (!boot_prepare(boot, fs, sbc))
+		panic(12, "Failed to load boot images\n");
+
+	//boot_append_bootargs(boot, source == SD ? "bootdev=sd" : "bootdev=emmc");
+
+	void* fdt = boot->fdt;
+        const char* model = fdt_getprop(fdt, 0, "model", NULL);
+        if (model)
+                printf("DT model: %s\n", model);
+
+	if (!boot_finalize(boot))
+		panic(13, "Failed to finalize boot\n");
+
+	if (reboot_loop)
+		pmic_reboot();
+		
+	boot_perform(boot);
+}
+
+void main(void)
+{
+	struct mmc* mmc;
+
+	//globals->board_rev = detect_pinephone_revision();
+
+	/*
+	uint32_t sid[4];
+	get_soc_id(sid);
+	printf("SoC ID: %08x:%08x:%08x:%08x\nBoard rev: 1.%d\n", sid[0], sid[1], sid[2], sid[3], board_rev);
+          */
+
+        //rtc_fixup();
+
+	//pmic_setup_bat_temp_sensor();
+	//pmic_setup_ocv_table();
+
+	// set CPU voltage to high and increase the clock to the highest OPP
+
 	printf("Boot Source: %x\n", get_boot_source());
 
-	uint64_t bootfs_offset = 0;
-	enum {SD, MMC} source = MMC;
+	__attribute__((unused))
+	enum {SD, eMMC} source = eMMC;
+	struct bootfs* fs = NULL;
 
 	// we always boot from eMMC, even when bootloader started from SD card
 	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
-	mmc = mmc_init_emmc();
-	if (!mmc || !bootfs_locate(mmc, &bootfs_offset)) {
+	mmc = mmc_probe(2);
+	if (!mmc || !(fs = bootfs_open(mmc))) {
 		printf("BOOTFS not found on eMMC, trying SD card\n");
-		mmc = mmc_init_sd();
-		source = SD;
+		mmc = mmc_probe(0);
 
 		// read bootfs superblock and the config table
-		if (!mmc || !bootfs_locate(mmc, &bootfs_offset))
-			panic(14, "BOOTFS not found on SD card\n");
-	}
-
-	struct bootfs_conf* sbc = bootfs_select_configuration();
-
-	// read the images from the selected table entry to memory
-	ulong initramfs_start = 0, initramfs_end = 0;
-	bool has_atf = false, has_linux = false;
-	char* bootargs = (char*)sbc->boot_args;
-	void* fdt_blob = NULL;
-
-	for (int j = 0; j < sizeof(sbc->images) / sizeof(sbc->images[0]); j++) {
-		struct bootfs_image* im = &sbc->images[j];
-		unsigned type = __be32_to_cpu(im->type);
-		uintptr_t dest = 0;
-
-		switch (type) {
-			case 'A':
-				dest = ATF_PA;
-				has_atf = true;
-				break;
-			case 'D':
-				dest = FDT_BLOB_PA;
-				fdt_blob = (void*)dest;
-				break;
-			case 'L':
-				dest = LINUX_IMAGE_PA;
-				has_linux = true;
-				break;
-			case 'I':
-				dest = INITRAMFS_PA;
-				initramfs_start = dest;
-				initramfs_end = dest + __be32_to_cpu(im->data_len);
-				break;
+		if (!mmc || !(fs = bootfs_open(mmc))) {
+			printf("BOOTFS not found on SD card\n");
+			panic(11, "Nothing to boot");
+			//goto boot_ui;
 		}
 
-		if (!dest)
-			break;
-
-		uint64_t img_off = (uint64_t)bootfs_offset + __be32_to_cpu(im->data_off);
-		uint32_t img_len = __be32_to_cpu(im->data_len);
-		if (img_off % 512)
-			panic(15, "failed to read BFCONF[%d]IMG[%d]: unaligned offset\n", bootsel, j);
-		if (img_len > 1024*1024*512)
-			panic(16, "failed to read BFCONF[%d]IMG[%d]: image too big\n", bootsel, j);
-
-		ulong s = timer_get_boot_us();
-		if (!mmc_read_data(mmc, dest, img_off, img_len))
-			panic(17, "failed to read BFCONF[%d]IMG[%d]\n", bootsel, j);
-
-		printf("%d us: IMG[%c]: 0x%llx(%u B) -> 0x%x (%llu KiB/s)\n",
-		       timer_get_boot_us() - t0, type,
-		       img_off, img_len, (unsigned)dest,
-		       (uint64_t)img_len * 1000000 / (timer_get_boot_us() - s) / 1024);
+		source = SD;
 	}
 
-	if (!has_atf)
-		panic(18, "missing ATF(+SCP) image");
-	if (!has_linux)
-		panic(19, "missing Linux image");
-	if (!fdt_blob)
-		panic(20, "missing FDT blob\n");
+	int key = lradc_get_pressed_key();
 
-        // setup FDT
+//	reboot_loop = true;
+	int sel = 0;
+	if (key == KEY_VOLUMEDOWN) {
+		sel = 1;
+		//reboot_loop = false;
+	} else if (key == KEY_VOLUMEUP)
+		sel = 2;
 
-        int err = fdt_check_header(fdt_blob);
-        if (err < 0)
-                panic(21, "bad FDT hedaer: %s\n", fdt_strerror(err));
+	boot_selection(fs, &fs->confs_blocks[sel]);
 
-        const char* model = fdt_getprop(fdt_blob, 0, "model", NULL);
-        if (model)
-                printf("Model: %s\n", model);
-
-	err = fdt_increase_size(fdt_blob, 1024*128); // generous
-        if (err < 0)
-                panic(22, "can't expand FDT: %s\n", fdt_strerror(err));
-
-        int chosen_off = fdt_find_or_add_subnode(fdt_blob, 0, "chosen");
-        if (chosen_off < 0)
-                panic(23, "can't create /chosen node\n");
-
-	bootargs = fixup_bootargs(bootargs, source == SD);
-
-	err = fdt_setprop(fdt_blob, chosen_off, "bootargs",
-			  bootargs, strlen(bootargs) + 1);
-	if (err < 0)
-                panic(24, "can't set bootargs %d (%s)\n", err, bootargs);
-
-	err = fdt_fixup_memory(fdt_blob, 0x40000000, dram_size);
-	if (err < 0)
-		panic(25, "can't set memory range\n")
-
-	if (initramfs_start) {
-		err = fdt_initrd(fdt_blob, initramfs_start, initramfs_end);
-		if (err < 0)
-			panic(26, "can't setup initrd\n");
-	}
-
-	fdt_fixup_wifi(fdt_blob);
-	fdt_add_pboot_data(fdt_blob);
-
-	// PinePhone doesn't need BT local address fixup
-	//fdt_fixup_bt(fdt_blob);
-
-	// this also sets up reservation for FDT blob
-	err = fdt_shrink_to_minimum(fdt_blob, 0);
-	if (err < 0)
-		panic(27, "can't shrink fdt\n")
-
-	// mark end of p-boot by switching to red led
-        green_led_set(0);
-        red_led_set(1);
-
-#ifdef CONFIG_DEVMODE
-        puts("Reset!\n");
-	soc_reset();
-#endif
-
-	jump_to_atf();
+	panic(10, "Should not return\n");
 }

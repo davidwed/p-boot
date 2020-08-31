@@ -8,17 +8,19 @@
  */
 
 #define COUNTER_FREQUENCY 24000000
-/* end of SRAM A2 for now, as SRAM A1 is pretty tight for an ARM64 build */
+
+/* Use end of SRAM A2 for now, as SRAM A1 is pretty tight for an ARM64 build. */
 #define SRAM_STACK_A2     0x00054000
-/* stack for a short function call after return from ATF (end of A1 SRAM) */
-#define SRAM_STACK_A1     0x00011000
+#define DRAM_MAIN         0x80000000
 
 	.global _start
 
 _start:
 	/*
 	 * Switch into AArch64 if needed.
-	 * Taken from u-boot.
+	 *
+	 * TODO: we can try to run in aarch32/thumb mode up until jumping to ATF
+	 * and this could save some space for more features.
 	 */
         tst     x0, x0                  // this is "b #0x84" in ARM
         b       _reset
@@ -46,19 +48,33 @@ _reset:
 	msr	cptr_el3, xzr			/* Enable FP/SIMD */
 	ldr	x0, =COUNTER_FREQUENCY
 	msr	cntfrq_el0, x0			/* Initialize CNTFRQ */
+
+	/* BROM/FEL loaded our image just now, so we don't need to init BSS. */
         ldr     w0, =SRAM_STACK_A2
         bic     sp, x0, #0xf
+#ifdef DRAM_STACK_SWITCH
+        bl      main_sram_only
+
+	/* Run main() with stack in DRAM, since we'll be loading SCP to SRAM A2 */
+        ldr     w0, _dram_stack_top
+        bic     sp, x0, #0xf
+#endif
         bl      main
+
+#ifdef RETURN_TO_DRAM_MAIN
+	/* Normally main() will return only if it wants to jump to a bootloader
+	 * part that is loaded in DRAM */
+	ldr	w0, globals
+	ldr	w1, =DRAM_MAIN
+        blr     x1
+#endif
 
 0:
 	wfi
 	b 0b
 
-#ifndef CONFIG_ATF_TO_LINUX
-	.global atf_exit
-atf_exit:
-        ldr     w0, =SRAM_STACK_A1-16
-        bic     sp, x0, #0xf
-        bl 	atf_exit_finish
-	b 	0b
+#ifdef DRAM_STACK_SWITCH
+	.global _dram_stack_top
+_dram_stack_top:
+	.word 0
 #endif

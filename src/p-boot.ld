@@ -32,23 +32,12 @@ SECTIONS
 	.text : {
 		. = ALIGN(8);
 		*start.o (.text*)
-
-		/* We put code/data necessary for jump to Linux in the first 1KiB,
-		 * because 1KiB+ is clobbered by ATF NOBITS. */
-		*(.lowtext*)
-		*(.lowdata*)
-
 		. = ALIGN(8);
 		*(.text*)
-	} >sram
-
-	.data : {
 		. = ALIGN(8);
 		*(SORT_BY_ALIGNMENT(SORT_BY_NAME(.rodata*)))
+		. = ALIGN(8);
 		*(.data*)
-	} >sram
-
-	.bss : {
 		. = ALIGN(8);
 		*(.bss*)
 	} >sram

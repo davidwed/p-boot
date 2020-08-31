@@ -442,7 +442,6 @@ $configs = [
 //	'CONFIG_MMC_VERBOSE',
 //	'CONFIG_MMC_TRACE',
 	'FDT_ASSUME_MASK=0xff',
-	'CONFIG_ATF_TO_LINUX',
 ];
 
 $cflags = [
@@ -595,7 +594,10 @@ p_boot([
 	'main' => '$srcdir/main.c',
 	'cflags' => [
 		'$pboot_cflags',
-		 '-DPBOOT_FDT_LOG',
+//		 '-DPBOOT_FDT_LOG',
+		 '-DSERIAL_CONSOLE',
+		 '-DRETURN_TO_DRAM_MAIN',
+		 '-DDRAM_STACK_SWITCH',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
@@ -606,7 +608,10 @@ p_boot([
 	'cflags' => [
 		'$pboot_cflags',
 		 '-DSERIAL_CONSOLE',
+		 '-DNORMAL_LOGGING',
 		 '-DPBOOT_FDT_LOG',
+		 '-DRETURN_TO_DRAM_MAIN',
+		 '-DDRAM_STACK_SWITCH',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
@@ -616,6 +621,8 @@ p_boot([
 	'main' => '$srcdir/main.c',
 	'cflags' => [
 		'$pboot_cflags',
+		 '-DRETURN_TO_DRAM_MAIN',
+		 '-DDRAM_STACK_SWITCH',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
