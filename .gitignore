@@ -6,3 +6,6 @@
 /fw/.build-crust
 /fw/*.bin
 /fw/config
+/theme/make-argb
+/theme/argb/
+/theme/pngs/
