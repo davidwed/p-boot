@@ -43,12 +43,6 @@ struct sunxi_idma_desc {
         u32 buf_addr_ptr2;
 };
 
-#ifdef CONFIG_DM_MMC
-struct sunxi_mmc_variant {
-	u16 mclk_offset;
-};
-#endif
-
 struct sunxi_mmc_plat {
 	struct mmc_config cfg;
 	struct mmc mmc;
@@ -64,12 +58,7 @@ struct sunxi_mmc_priv {
 	struct mmc_config cfg;
 	unsigned n_dma_descs;
 	struct sunxi_idma_desc* dma_descs;
-#ifdef CONFIG_DM_MMC
-	const struct sunxi_mmc_variant *variant;
-#endif
 };
-
-#if !CONFIG_IS_ENABLED(DM_MMC)
 
 /*
 static int sunxi_mmc_getcd_gpio(int sdc_no)
@@ -127,7 +116,6 @@ static int mmc_resource_init(struct sunxi_mmc_priv *priv, unsigned sdc_no)
 */
 	return ret;
 }
-#endif
 
 /*
  * New timing modes usable on controllers:
@@ -309,7 +297,6 @@ static int mmc_update_clk(struct sunxi_mmc_priv *priv)
 
 #define SDXC_MASK_DATA0			BIT(31)
 
-
 static int mmc_config_clock(struct sunxi_mmc_priv *priv, struct mmc *mmc)
 {
 	/* Disable Clock */
@@ -372,7 +359,6 @@ static int sunxi_mmc_set_ios_common(struct sunxi_mmc_priv *priv,
 	return 0;
 }
 
-#if !CONFIG_IS_ENABLED(DM_MMC)
 static int sunxi_mmc_core_init(struct mmc *mmc)
 {
 	struct sunxi_mmc_priv *priv = mmc->priv;
@@ -383,7 +369,6 @@ static int sunxi_mmc_core_init(struct mmc *mmc)
 
 	return 0;
 }
-#endif
 
 static int mmc_trans_data_by_cpu(struct sunxi_mmc_priv *priv, struct mmc *mmc,
 				 struct mmc_data *data)
@@ -700,7 +685,6 @@ out:
 	return error;
 }
 
-#if !CONFIG_IS_ENABLED(DM_MMC)
 static int sunxi_mmc_set_ios_legacy(struct mmc *mmc)
 {
 	struct sunxi_mmc_priv *priv = mmc->priv;
@@ -752,7 +736,7 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 	memset(priv, '\0', sizeof(struct sunxi_mmc_priv));
 	cfg = &priv->cfg;
 
-	//cfg->name = "SUNXI SD/MMC";
+	cfg->name = sdc_no == 0 ? "SD" : "eMMC";
 	cfg->ops  = &sunxi_mmc_ops;
 
 	cfg->voltages = MMC_VDD_32_33 | MMC_VDD_33_34;
@@ -768,7 +752,6 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 
 	cfg->f_min = 400000;
 	cfg->f_max = 52000000;
-
 
 	// enough descs for a realy big u-boot (64MiB)
 	priv->n_dma_descs = 512 * 65536 / DMA_BUF_MAX_SIZE;
@@ -789,11 +772,6 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 	/* unassert reset */
 	setbits_le32(&ccm->ahb_reset0_cfg, 1 << AHB_RESET_OFFSET_MMC(sdc_no));
 #endif
-#if defined(CONFIG_MACH_SUN9I)
-	/* sun9i has a mmc-common module, also set the gate and reset there */
-	writel(SUNXI_MMC_COMMON_CLK_GATE | SUNXI_MMC_COMMON_RESET,
-	       SUNXI_MMC_COMMON_BASE + 4 * sdc_no);
-#endif
 #else /* CONFIG_MACH_SUN50I_H6 */
 	setbits_le32(&ccm->sd_gate_reset, 1 << sdc_no);
 	/* unassert reset */
@@ -805,197 +783,3 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 
 	return mmc_create(cfg, priv);
 }
-#else
-
-static int sunxi_mmc_set_ios(struct udevice *dev)
-{
-	struct sunxi_mmc_plat *plat = dev_get_platdata(dev);
-	struct sunxi_mmc_priv *priv = dev_get_priv(dev);
-
-	return sunxi_mmc_set_ios_common(priv, &plat->mmc);
-}
-
-static int sunxi_mmc_send_cmd(struct udevice *dev, struct mmc_cmd *cmd,
-			      struct mmc_data *data)
-{
-	struct sunxi_mmc_plat *plat = dev_get_platdata(dev);
-	struct sunxi_mmc_priv *priv = dev_get_priv(dev);
-
-	return sunxi_mmc_send_cmd_common(priv, &plat->mmc, cmd, data);
-}
-
-static int sunxi_mmc_getcd(struct udevice *dev)
-{
-	struct sunxi_mmc_priv *priv = dev_get_priv(dev);
-
-	if (dm_gpio_is_valid(&priv->cd_gpio)) {
-		int cd_state = dm_gpio_get_value(&priv->cd_gpio);
-
-		return cd_state ^ priv->cd_inverted;
-	}
-	return 1;
-}
-
-static const struct dm_mmc_ops sunxi_mmc_ops = {
-	.send_cmd	= sunxi_mmc_send_cmd,
-	.set_ios	= sunxi_mmc_set_ios,
-	.get_cd		= sunxi_mmc_getcd,
-};
-
-static int sunxi_mmc_probe(struct udevice *dev)
-{
-	struct mmc_uclass_priv *upriv = dev_get_uclass_priv(dev);
-	struct sunxi_mmc_plat *plat = dev_get_platdata(dev);
-	struct sunxi_mmc_priv *priv = dev_get_priv(dev);
-	struct reset_ctl_bulk reset_bulk;
-	struct clk gate_clk;
-	struct mmc_config *cfg = &plat->cfg;
-	struct ofnode_phandle_args args;
-	u32 *ccu_reg;
-	int bus_width, ret;
-
-	cfg->name = dev->name;
-	bus_width = dev_read_u32_default(dev, "bus-width", 1);
-
-	cfg->voltages = MMC_VDD_32_33 | MMC_VDD_33_34;
-	cfg->host_caps = 0;
-	if (bus_width == 8)
-		cfg->host_caps |= MMC_MODE_8BIT;
-	if (bus_width >= 4)
-		cfg->host_caps |= MMC_MODE_4BIT;
-	cfg->host_caps |= MMC_MODE_HS_52MHz | MMC_MODE_HS;
-	cfg->b_max = CONFIG_SYS_MMC_MAX_BLK_COUNT;
-
-	cfg->f_min = 400000;
-	cfg->f_max = 52000000;
-
-	priv->reg = (void *)dev_read_addr(dev);
-	priv->variant =
-		(const struct sunxi_mmc_variant *)dev_get_driver_data(dev);
-
-	// make sure we have enough space for descritors for BLK_SIZE * b_max
-	priv->n_dma_descs = 512 * 65536 / DMA_BUF_MAX_SIZE;
-	priv->dma_descs = malloc(sizeof(struct sunxi_idma_desc)
-				 * priv->n_dma_descs);
-	if (priv->dma_descs == NULL) {
-		debug("init mmc alloc failed\n");
-		return -ENOMEM;
-	}
-
-	/* We don't have a sunxi clock driver so find the clock address here */
-	ret = dev_read_phandle_with_args(dev, "clocks", "#clock-cells", 0,
-					  1, &args);
-	if (ret)
-		return ret;
-	ccu_reg = (u32 *)ofnode_get_addr(args.node);
-
-	priv->mmc_no = ((uintptr_t)priv->reg - SUNXI_MMC0_BASE) / 0x1000;
-	priv->mclkreg = (void *)ccu_reg +
-			(priv->variant->mclk_offset + (priv->mmc_no * 4));
-
-	if (priv->mmc_no == 2)
-		cfg->host_caps |= MMC_MODE_DDR_52MHz;
-
-	ret = clk_get_by_name(dev, "ahb", &gate_clk);
-	if (!ret)
-		clk_enable(&gate_clk);
-
-	ret = reset_get_bulk(dev, &reset_bulk);
-	if (!ret)
-		reset_deassert_bulk(&reset_bulk);
-
-	ret = mmc_set_mod_clk(priv, false, 24000000);
-	if (ret)
-		return ret;
-
-	/* This GPIO is optional */
-	if (!dev_read_bool(dev, "non-removable") &&
-	    !gpio_request_by_name(dev, "cd-gpios", 0, &priv->cd_gpio,
-				  GPIOD_IS_IN)) {
-		int cd_pin = gpio_get_number(&priv->cd_gpio);
-
-		sunxi_gpio_set_pull(cd_pin, SUNXI_GPIO_PULL_UP);
-	}
-
-	/* Check if card detect is inverted */
-	priv->cd_inverted = dev_read_bool(dev, "cd-inverted");
-
-	upriv->mmc = &plat->mmc;
-
-	/* Reset controller */
-	writel(SUNXI_MMC_GCTRL_RESET, &priv->reg->gctrl);
-	udelay(1000);
-
-	return 0;
-}
-
-static int sunxi_mmc_bind(struct udevice *dev)
-{
-	struct sunxi_mmc_plat *plat = dev_get_platdata(dev);
-
-	return mmc_bind(dev, &plat->mmc, &plat->cfg);
-}
-
-static const struct sunxi_mmc_variant sun4i_a10_variant = {
-	.mclk_offset = 0x88,
-};
-
-static const struct sunxi_mmc_variant sun9i_a80_variant = {
-	.mclk_offset = 0x410,
-};
-
-static const struct sunxi_mmc_variant sun50i_h6_variant = {
-	.mclk_offset = 0x830,
-};
-
-static const struct udevice_id sunxi_mmc_ids[] = {
-	{
-	  .compatible = "allwinner,sun4i-a10-mmc",
-	  .data = (ulong)&sun4i_a10_variant,
-	},
-	{
-	  .compatible = "allwinner,sun5i-a13-mmc",
-	  .data = (ulong)&sun4i_a10_variant,
-	},
-	{
-	  .compatible = "allwinner,sun7i-a20-mmc",
-	  .data = (ulong)&sun4i_a10_variant,
-	},
-	{
-	  .compatible = "allwinner,sun8i-a83t-emmc",
-	  .data = (ulong)&sun4i_a10_variant,
-	},
-	{
-	  .compatible = "allwinner,sun9i-a80-mmc",
-	  .data = (ulong)&sun9i_a80_variant,
-	},
-	{
-	  .compatible = "allwinner,sun50i-a64-mmc",
-	  .data = (ulong)&sun4i_a10_variant,
-	},
-	{
-	  .compatible = "allwinner,sun50i-a64-emmc",
-	  .data = (ulong)&sun4i_a10_variant,
-	},
-	{
-	  .compatible = "allwinner,sun50i-h6-mmc",
-	  .data = (ulong)&sun50i_h6_variant,
-	},
-	{
-	  .compatible = "allwinner,sun50i-h6-emmc",
-	  .data = (ulong)&sun50i_h6_variant,
-	},
-	{ /* sentinel */ }
-};
-
-U_BOOT_DRIVER(sunxi_mmc_drv) = {
-	.name		= "sunxi_mmc",
-	.id		= UCLASS_MMC,
-	.of_match	= sunxi_mmc_ids,
-	.bind		= sunxi_mmc_bind,
-	.probe		= sunxi_mmc_probe,
-	.ops		= &sunxi_mmc_ops,
-	.platdata_auto_alloc_size = sizeof(struct sunxi_mmc_plat),
-	.priv_auto_alloc_size = sizeof(struct sunxi_mmc_priv),
-};
-#endif
