@@ -1,0 +1,12 @@
+This is just a sample boot configuration directory that I use to boot from
+SD card. It can live anywhere, because p-boot does only care about the
+boot partition that is created based on the contents of this directory,
+using the p-boot-conf program.
+
+I generate the real boot.conf from a shell script template boot.conf.sh
+
+Then, whenever I want to update the kernel or boot configuration,
+I just copy the new kernel to stable/ or test/ and run `sh p-boot-reconf.sh`.
+
+When I'm updating p-boot itself, I copy a new p-boot.bin to this directory,
+and run `sh p-boot-install.sh`.

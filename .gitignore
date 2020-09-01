@@ -1,6 +1,5 @@
 /.build
 /build.ninja
-/example
 /fw/atf
 /fw/crust
 /fw/.build-crust
