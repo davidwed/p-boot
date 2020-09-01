@@ -402,7 +402,8 @@ size_t write_fd_checked(int dest_fd, int src_fd)
 static void usage(const char* msg)
 {
 	printf("ERROR: %s\n", msg);
-	printf("Usage: mkbootfs [conf-dir] [blk-dev]\n");
+	printf("Usage: p-boot-conf <conf-dir> <blk-dev>\n\n");
+	printf("Example: p-boot-conf /boot /dev/mmclbk1p1\n");
 	exit(1);
 }
 
