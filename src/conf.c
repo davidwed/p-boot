@@ -144,6 +144,11 @@ static void complete_conf(struct bconf* c)
 		exit(1);
 	}
 
+	if (!c->name[0]) {
+		printf("ERROR: %s: Configuration slot no=%d is missing a name\n", c->path, c->index);
+		exit(1);
+	}
+
 	for (int i = 0; i < sizeof(image_types) / sizeof(image_types[0]); i++) {
 		if (image_types[i].optional)
 			continue;
