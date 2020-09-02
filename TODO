@@ -1,5 +1,7 @@
 1.0: (est. December 2020)
 
+- automatic selection of 1.1/1.2 DTS based on autodetection
+
 - investigate timer erratum
   - upclocking may trigger it
   - or switching to 24MHz osc
