@@ -88,6 +88,29 @@ Building (without PHP)
 3) Same as above.
 
 
+Installation summary / key points
+---------------------------------
+
+- PinePhone looks for bootloader 8KiB from the start of SD or eMMC block
+  devices, in that order. p-boot.bin needs to be flashed there.
+- p-boot doesn't understand traditional filesystems, it uses it's own
+  very simple boot filesystem format, and comes with a filesystem
+  formating utility called p-boot-conf, that is used to create it.
+- Once flashed to the boot sector, p-boot will look for the boot
+  filesystem in the DOS MBR style partition table (it doesn't understand
+  any other partition format).
+- So all you need to have is:
+  - DOS MBR partition table
+  - A boot partition for p-boot. You can re-use a boot partition
+    that most distributions create for files in /boot, just copy files from
+    /boot to your root partition, unmount /boot, and re-format the boot
+    partition using p-boot-conf. You can copy the the original files
+    from boot partition back to /boot directory on the root partition,
+    so that your distro will not break and keep updating them. Just
+    make sure your distro will not overwrite a boot sector during updates
+    with U-Boot. (perhaps by uninstalling a u-boot package)
+
+
 Installing p-boot to the "boot sector"
 --------------------------------------
 
@@ -122,8 +145,11 @@ images + Linux command line arguments (bootargs).
 You can use p-boot-conf tool to create a boot filesystem. You can find this
 tool pre-built in the dist/ folder.
 
-This tool reads all files ending with '*.conf' from a configuration directory
-and writes data to the boot partition based on the content of these files.
+This tool reads a 'boot.conf' file from a specified configuration directory
+and creates a specialized filesystem on the boot partition based on the
+content of these files. You'll need to run this tool each time you'll update
+the configuration, or one of the kernel images, to regenerate the boot
+filesystem.
 
 Each configuration file has the following format:
 
@@ -155,9 +181,24 @@ configuration directory.
 After preparing the configuration files, and collecting the required binary files
 in the configuration directory, run:
 
-  p-boot-conf $conf_dir $boot_partition_blockk_device
+  p-boot-conf $conf_dir $boot_partition_block_device
 
-Once done, you can reboot the PinePhone to check that p-boot works.
+Once done, you can reboot the PinePhone to check that p-boot works. Pre-built
+dist/p-boot-conf is meant for running on PinePhone itself. If you need a build
+of this tool for another architecture, just run `gcc -o p-boot-conf-native conf.c`
+in the `src/` directory.
+
+
+GUI variant of p-boot
+---------------------
+
+GUI variant of p-boot looks for certain hardcoded files in the boot filesystem:
+
+- off.argb     - power off splashscreen
+- pboot2.argb  - default p-boot splashscreen
+
+These files can be found in the `example/` configuration, or generated
+from source files in the `theme/` directory.
 
 
 Runtime behavior
@@ -268,12 +309,11 @@ Variants
 p-boot can be compiled with several options that improve boot speed,
 or reduce size or both.
 
-  p-boot.bin        - probably what you want, logs to FDT only
-  p-boot-serial.bin - logs to serial console and FDT
-  p-boot-tiny.bin   - doesn't log at all, and doesn't store
-                      log messages in the binary, so it saves about
-                      5 KiB of space for more code
-
+  p-boot.bin        - GUI variant of p-boot
+  p-boot-serial.bin - non-GUI variant, logs to serial console and FDT
+  p-boot-tiny.bin   - non-GUI variant, doesn't log anyhting at all,
+                      and doesn't store log messages in the binary,
+                      so it saves about 5 KiB of space for more code
 
 This is a typical boot log from the p-boot.bin:
 
