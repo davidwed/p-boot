@@ -93,7 +93,7 @@ Installation summary / key points
 
 - PinePhone looks for bootloader 8KiB from the start of SD or eMMC block
   devices, in that order. p-boot.bin needs to be flashed there.
-- p-boot doesn't understand traditional filesystems, it uses it's own
+- p-boot doesn't understand traditional filesystems, it uses its own
   very simple boot filesystem format, and comes with a filesystem
   formating utility called p-boot-conf, that is used to create it.
 - Once flashed to the boot sector, p-boot will look for the boot
@@ -315,7 +315,7 @@ or reduce size or both.
                       and doesn't store log messages in the binary,
                       so it saves about 5 KiB of space for more code
 
-This is a typical boot log from the p-boot.bin:
+This is a typical boot log from the p-boot-serial.bin:
 
 % cat /sys/firmware/devicetree/base/p-boot/log
 
