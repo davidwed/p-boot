@@ -134,6 +134,7 @@ static const struct image_type {
 	{ "initramfs", 'I', true },
 	{ "atf",       'A', },
 	{ "dtb",       'D', },
+	{ "dtb2",      '2', true },
 	{ "splash",    'S', true },
 };
 

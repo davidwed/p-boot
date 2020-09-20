@@ -789,6 +789,7 @@ static void fdt_add_pboot_data(void* fdt_blob, struct bootfs* fs)
  * 0x00044000 - ATF
  * 0x40080000 - Linux Image
  * 0x4a000000 - DTB
+ * 0x4b000000 - DTB2 (alternative dtb)
  * 0x4fe00000 - initramfs
  *
  * ATF maps 0x4a000000 - 0x4c000000 for main u-boot binary. We don't have u-boot
@@ -799,6 +800,7 @@ static void fdt_add_pboot_data(void* fdt_blob, struct bootfs* fs)
 #define ATF_PA		0x44000
 #define LINUX_IMAGE_PA	0x40000000
 #define FDT_BLOB_PA	0x4a000000
+#define FDT_BLOB2_PA	0x4b000000
 #define INITRAMFS_PA	0x4fe00000
 
 enum {
@@ -807,6 +809,7 @@ enum {
 	IMAGE_LINUX,
 	// put required images above this line
 	IMAGE_INITRD,
+	IMAGE_FDT2,
 	IMAGE_COUNT,
 };
 
@@ -825,6 +828,7 @@ struct boot
 static const char* img_names[] = {
 	[IMAGE_ATF] = "ATF(+SCP)",
 	[IMAGE_FDT] = "FDT",
+	[IMAGE_FDT2] = "FDT2",
 	[IMAGE_LINUX] = "Linux",
 	[IMAGE_INITRD] = "Initrd",
 };
@@ -851,6 +855,10 @@ bool boot_prepare(struct boot* boot, struct bootfs* fs, struct bootfs_conf* bc)
 			case 'D':
 				dest = FDT_BLOB_PA;
 				image_kind = IMAGE_FDT;
+				break;
+			case '2':
+				dest = FDT_BLOB2_PA;
+				image_kind = IMAGE_FDT2;
 				break;
 			case 'L':
 				dest = LINUX_IMAGE_PA;
@@ -892,6 +900,16 @@ bool boot_prepare(struct boot* boot, struct bootfs* fs, struct bootfs_conf* bc)
 						 img_names[i]);
 		if (size < 0)
 			return false;
+	}
+
+	// if alternate FDT is present, assume it's for 1.2 and if 1.2 is detected
+	// use it
+	if (boot->loaded_images & (1 << IMAGE_FDT2)) {
+		if (globals->board_rev == 2) {
+			memcpy((void*)(uintptr_t)boot->image_dests[IMAGE_FDT],
+			       (void*)(uintptr_t)boot->image_dests[IMAGE_FDT2],
+			       boot->image_sizes[IMAGE_FDT2]);
+		}
 	}
 
 	boot->fdt = (void*)(uintptr_t)boot->image_dests[IMAGE_FDT];
@@ -1373,7 +1391,7 @@ void main(void)
 {
 	struct mmc* mmc;
 
-	//globals->board_rev = detect_pinephone_revision();
+	globals->board_rev = detect_pinephone_revision();
 
 	/*
 	uint32_t sid[4];
