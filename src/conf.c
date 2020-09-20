@@ -266,7 +266,11 @@ static bool parse_conf(const char* conf_dir, const char* conf_filename)
 					continue;
 
 				char path[PATH_MAX];
-				snprintf(path, sizeof path, "%s/%s", conf_dir, val);
+				if (val[0] == '/')
+					snprintf(path, sizeof path, "%s", val);
+				else
+					snprintf(path, sizeof path, "%s/%s", conf_dir, val);
+
 				struct data* d = data_add_file(path);
 
 				struct bconf_image* im = malloc(sizeof *im), *imi, *imi_last;
