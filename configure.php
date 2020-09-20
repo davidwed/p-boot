@@ -470,6 +470,8 @@ $cflags = [
 	'-Wno-format-nonliteral',
 	'-Werror=date-time',
 	'-Wno-unused-function',
+	'-Wno-unused-but-set-variable',
+	'-Wno-unused-variable',
 
 	// build flags
 	'-fno-builtin',
