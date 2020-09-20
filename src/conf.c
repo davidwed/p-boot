@@ -377,10 +377,43 @@ off_t lseek_checked(int fd, off_t off)
 	return off_out;
 }
 
-size_t write_fd_checked(int dest_fd, int src_fd)
+struct kernel_image_hdr {
+	uint32_t code0;                    /* Executable code */
+	uint32_t code1;                    /* Executable code */
+	uint64_t text_offset;              /* Image load offset, little endian */
+	uint64_t image_size;               /* Effective Image size, little endian */
+	uint64_t flags;                    /* kernel flags, little endian */
+	uint64_t res2;		      /* reserved */
+	uint64_t res3;		      /* reserved */
+	uint64_t res4;                     /* reserved */
+	uint32_t magic;		      /* Magic number, little endian, "ARM\x64" */
+	uint32_t res5;                     /* reserved (used for PE COFF offset) */
+};
+
+size_t write_fd_checked(int dest_fd, int src_fd, const char* path)
 {
 	size_t len = 0;
 
+	// check for u-boot image header and skip it
+	uint8_t buf[64];
+	lseek_checked(src_fd, 0);
+	ssize_t read_b = read(src_fd, buf, sizeof buf);
+	if (read_b == sizeof buf) {
+		// uImage magic
+		if (buf[0] == 0x27 && buf[1] == 0x05 && buf[2] == 0x19 && buf[3] == 0x56) {
+			printf("WARNING: Detected uImage header magic, skipping header (%s)\n", path);
+			goto do_write;
+		}
+		
+		struct kernel_image_hdr* h = (void*)buf;
+		if (h->magic == 0x644d5241) {
+			printf("Kernel Image detected: text_offset=0x%08x\n", h->text_offset);
+		}
+	}
+
+	lseek_checked(src_fd, 0);
+
+do_write:
 	while (1) {
 		char buf[1024*128];
 
@@ -459,7 +492,7 @@ int main(int ac, char* av[])
 		lseek_checked(d->fd, 0);
 
 		d->offset = off_i;
-		d->size = write_fd_checked(fd, d->fd);
+		d->size = write_fd_checked(fd, d->fd, d->path);
 
 		off_i += d->size;
 		if (off_i % 512)
