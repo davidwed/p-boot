@@ -1330,7 +1330,7 @@ static void boot_gui(struct bootfs* fs)
 			flips++;
 
 			if (flips == 1) {
-				backlight_enable(80);
+				backlight_enable(60);
 			}
 		}
 
@@ -1456,7 +1456,7 @@ void main(void)
 //		while (!display_frame_done());
 
 		// wait for vblank maybe
-		backlight_enable(80);
+		backlight_enable(60);
 
 		boot_selection(fs, sbc, 0x48000000);
 		goto boot_ui;
