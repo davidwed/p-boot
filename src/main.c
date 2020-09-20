@@ -572,18 +572,35 @@ static void wdog_disable(void)
 // }}}
 // {{{ PMIC initialization
 
+// 3kOhm NTC inside PinePhone batery
+// ---------------------------------
+//
+// Charging:
+//  0 - 15 °C: Max 0.2C CC to 4.35V : 9750 Ohm - 4710 Ohm
+// 15 - 50 °C: Max 0.5C CC to 4.35V : 4710 Ohm - 1080 Ohm
+//
+// Discharging:
+// -10 °C : 16500 Ohm
+//  55 °C : 896 Ohm
+
 static void pmic_setup_bat_temp_sensor(void)
 {
-	// setup TS
-	// 12 bits ADC output code = R_NTC(Ω) * REG 84[5:4]( μA) / (0.8 * 1000).
-	// REG 84H [5:4] 00: 20uA; 01: 40uA; 10: 60uA; 11: 80uA (11 default)
-	//         [1:0] 10: on in ADC phase and off when out of the ADC phase, for power saving;
-	// REG 82h [0] TS pin input to ADC enable - 1=on
-	// REG 58_[7:0] REG 59_[3:0]  (raw value from TS adc)
-	// REG 84_[2] -- allow to control the charger
-	// Vhtf Vltf
-	// REG 38H: V LTF-charge settin   M*10H,M=A5H: 2.112V; range is 0V-3.264V
-	// REG 39H: V HTF-charge setting  N*10H,N=1FH: 0.397V; range is 0V-3.264V
+	// enable TS pin input to ADC
+	pmic_clrsetbits(0x82, 0, BIT(0));
+
+	// safety thresholds:
+
+	// voltage = reg_val * 12800 uV (range is 0 - 3.264V)
+	pmic_write(0x38,  9750 * 80 / 12800); // V_LTF-charge
+	pmic_write(0x39,  1080 * 80 / 12800); // V_HTF-charge
+	pmic_write(0x3c, 16500 * 80 / 12800); // V_LTF-work
+	pmic_write(0x3d,   896 * 80 / 12800); // V_HTF-work
+
+	// There is a hysteresis of 460.8 mV(refer to TS pin voltage) for UTP
+	// threshold, and there is a hysteresis of 57.6 mV for OTP threshold.
+
+	// use TS pin only when charging, make it affect the charger, I = 80uA
+	pmic_clrsetbits(0x84, 0x37, 0x31);
 }
 
 /* PinePhone battery data, TODO: read from FDT */
@@ -1174,6 +1191,15 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 	//boot_append_bootargs(boot, source == SD ? "bootdev=sd" : "bootdev=emmc");
 
 	void* fdt = boot->fdt;
+
+	// need to remove x-powers,ts-as-gpadc from FDT, because p-boot
+	// configures TS correctly and we want battery thermal protection
+	// to function correctly
+        int adc_node = fdt_path_offset(fdt, "/soc/rsb@1f03400/pmic@3a3/adc");
+	if (adc_node >= 0) {
+		fdt_delprop(fdt, adc_node, "x-powers,ts-as-gpadc");
+	}
+
         const char* model = fdt_getprop(fdt, 0, "model", NULL);
         if (model)
                 printf("DT model: %s\n", model);
@@ -1357,7 +1383,7 @@ void main(void)
 
         //rtc_fixup();
 
-	//pmic_setup_bat_temp_sensor();
+	pmic_setup_bat_temp_sensor();
 	//pmic_setup_ocv_table();
 
 	// set CPU voltage to high and increase the clock to the highest OPP
