@@ -51,6 +51,14 @@
 #include "ccu.h"
 #include "display.h"
 
+#ifndef DUMP_DSI_INIT
+#define DUMP_DSI_INIT 0
+#endif
+
+#ifndef DSI_FULL_INIT
+#define DSI_FULL_INIT 0
+#endif
+
 //
 // General display enablement flow:
 //
@@ -78,10 +86,10 @@
 #define PANEL_VSYNC_START	(1440 + 18)
 #define PANEL_VSYNC_END		(1440 + 18 + 10)
 #define PANEL_VTOTAL		(1440 + 18 + 10 + 17)
-#define PANEL_VREFRESH		(60)
 #define PANEL_CLOCK		(69000)
 #define PANEL_LANES		4
 #define PANEL_DSI_BPP		24
+#define PANEL_BURST		0
 
 /*
  * Init sequence was supplied by the panel vendor:
@@ -542,6 +550,16 @@ static void dphy_enable(void)
 
 #define DSI_BASE 0x01ca0000u
 
+#define MIPI_DSI_BLANKING_PACKET 0x19
+#define MIPI_DSI_PACKED_PIXEL_STREAM_24	0x3e
+#define MIPI_DSI_V_SYNC_START	 0x01
+#define MIPI_DSI_V_SYNC_END	 0x11
+#define MIPI_DSI_H_SYNC_START	 0x21
+#define MIPI_DSI_H_SYNC_END	 0x31
+#define MIPI_DSI_DCS_LONG_WRITE	       0x39
+#define MIPI_DSI_DCS_SHORT_WRITE_PARAM 0x15
+#define MIPI_DSI_DCS_SHORT_WRITE       0x05
+
 enum sun6i_dsi_start_inst {
         DSI_START_LPRX,
         DSI_START_LPTX,
@@ -704,8 +722,6 @@ static u32 sun6i_dsi_build_sync_pkt(u8 dt, u8 vc, u8 d0, u8 d1)
         return val;
 }
 
-#define MIPI_DSI_BLANKING_PACKET 0x19
-
 static u32 sun6i_dsi_build_blk0_pkt(u8 vc, u16 wc)
 {
         return sun6i_dsi_build_sync_pkt(MIPI_DSI_BLANKING_PACKET, vc,
@@ -718,8 +734,6 @@ static u32 sun6i_dsi_build_blk1_pkt(u16 pd, u8 *buffer, size_t len)
 
         return val | SUN6I_DSI_BLK_PF(sun6i_dsi_crc_repeat(pd, buffer, len));
 }
-
-#define DUMP_DSI_INIT 0
 
 static uint32_t dsi_read(unsigned long reg)
 {
@@ -797,17 +811,52 @@ static void sun6i_dsi_inst_init(void)
 		  SUN6I_DSI_INST_JUMP_CFG_NUM(1));
 };
 
+static u16 sun6i_dsi_get_line_num(void)
+{
+	unsigned int Bpp = PANEL_DSI_BPP / 8;
+
+	return PANEL_HTOTAL * Bpp / PANEL_LANES;
+}
+
+#define SUN6I_DSI_TCON_DIV	4
+
+static u16 sun6i_dsi_get_drq_edge0(u16 line_num, u16 edge1)
+{
+	u16 edge0 = edge1;
+
+	edge0 += (PANEL_HDISPLAY + 40) * SUN6I_DSI_TCON_DIV / 8;
+
+	if (edge0 > line_num)
+		return edge0 - line_num;
+
+	return 1;
+}
+
+static u16 sun6i_dsi_get_drq_edge1(u16 line_num)
+{
+	unsigned int Bpp = PANEL_DSI_BPP / 8;
+	unsigned int hbp = PANEL_HTOTAL - PANEL_HSYNC_END;
+	u16 edge1;
+
+	edge1 = SUN6I_DSI_SYNC_POINT;
+	edge1 += (PANEL_HDISPLAY + hbp + 20) * Bpp / PANEL_LANES;
+
+	if (edge1 > line_num)
+		return line_num;
+
+	return edge1;
+}
+
 static void sun6i_dsi_setup_burst(void)
 {
         u32 val = 0;
 
-#if 0
-        if (mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
-                u16 line_num = sun6i_dsi_get_line_num(mode);
+        if (PANEL_BURST) {
+                u16 line_num = sun6i_dsi_get_line_num();
                 u16 edge0, edge1;
 
-                edge1 = sun6i_dsi_get_drq_edge1(mode, line_num);
-                edge0 = sun6i_dsi_get_drq_edge0(mode, line_num, edge1);
+                edge1 = sun6i_dsi_get_drq_edge1(line_num);
+                edge0 = sun6i_dsi_get_drq_edge0(line_num, edge1);
 
                 dsi_write(SUN6I_DSI_BURST_DRQ_REG,
                              SUN6I_DSI_BURST_DRQ_EDGE0(edge0) |
@@ -818,9 +867,7 @@ static void sun6i_dsi_setup_burst(void)
                              SUN6I_DSI_BURST_LINE_SYNC_POINT(SUN6I_DSI_SYNC_POINT));
 
                 val = SUN6I_DSI_TCON_DRQ_ENABLE_MODE;
-        } else
-#endif
-	if ((PANEL_HSYNC_START - PANEL_HDISPLAY) > 20) {
+        } else if ((PANEL_HSYNC_START - PANEL_HDISPLAY) > 20) {
                 /* Maaaaaagic */
                 u16 drq = (PANEL_HSYNC_START - PANEL_HDISPLAY) - 20;
 
@@ -838,14 +885,12 @@ static void sun6i_dsi_setup_inst_loop(void)
 {
         u16 delay = 50 - 1;
 
-#if 0
-        if (mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
-                u32 hsync_porch = (mode->htotal - mode->hdisplay) * 150;
+        if (PANEL_BURST) {
+                u32 hsync_porch = (PANEL_HTOTAL - PANEL_HDISPLAY) * 150;
 
-                delay = (hsync_porch / ((mode->clock / 1000) * 8));
+                delay = (hsync_porch / ((PANEL_CLOCK / 1000) * 8));
                 delay -= 50;
         }
-#endif
 
 	dsi_write(SUN6I_DSI_INST_LOOP_SEL_REG,
 		  2 << (4 * DSI_INST_ID_LP11) |
@@ -858,8 +903,6 @@ static void sun6i_dsi_setup_inst_loop(void)
 		  SUN6I_DSI_INST_LOOP_NUM_N0(50 - 1) |
 		  SUN6I_DSI_INST_LOOP_NUM_N1(delay));
 }
-
-#define MIPI_DSI_PACKED_PIXEL_STREAM_24	0x3e
 
 static void sun6i_dsi_setup_format(unsigned channel)
 {
@@ -901,8 +944,7 @@ static void sun6i_dsi_setup_timings(unsigned channel)
 
         /* Do all timing calculations up front to allocate buffer space */
 
-#if 0
-        if (mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
+        if (PANEL_BURST) {
                 hblk = PANEL_HDISPLAY * Bpp;
                 basic_ctl = SUN6I_DSI_BASIC_CTL_VIDEO_BURST |
                             SUN6I_DSI_BASIC_CTL_HSA_HSE_DIS |
@@ -912,7 +954,6 @@ static void sun6i_dsi_setup_timings(unsigned channel)
                         basic_ctl |= SUN6I_DSI_BASIC_CTL_TRAIL_FILL |
                                      SUN6I_DSI_BASIC_CTL_TRAIL_INV(0xc);
         } else {
-#endif
                 /*
                  * A sync period is composed of a blanking packet (4
                  * bytes + payload + 2 bytes) and a sync event packet
@@ -958,16 +999,11 @@ static void sun6i_dsi_setup_timings(unsigned channel)
                  * case) even with a 4 lanes screen seems to work...
                  */
                 vblk = 0;
-        //}
+        }
 
         /* How many bytes do we need to send all payloads? */
         bytes = max_t(size_t, max(max(hfp, hblk), max(hsa, hbp)), vblk);
 	buffer = malloc(bytes);
-
-#define MIPI_DSI_V_SYNC_START	 0x01
-#define MIPI_DSI_V_SYNC_END	 0x11
-#define MIPI_DSI_H_SYNC_START	 0x21
-#define MIPI_DSI_H_SYNC_END	 0x31
 
         dsi_write(SUN6I_DSI_BASIC_CTL_REG, basic_ctl);
 
@@ -1110,10 +1146,6 @@ static int sun6i_dsi_start(enum sun6i_dsi_start_inst func)
 
         return 0;
 }
-
-#define MIPI_DSI_DCS_LONG_WRITE	       0x39
-#define MIPI_DSI_DCS_SHORT_WRITE_PARAM 0x15
-#define MIPI_DSI_DCS_SHORT_WRITE       0x05
 
 static u32 sun6i_dsi_dcs_build_pkt_hdr(u8 type, const u8* buf, unsigned len)
 {
@@ -1260,8 +1292,6 @@ static void dsi_init(void)
 
 // }}}
 // {{{ DSI SMALL
-
-#if 1
 
 #define MAGIC_COMMIT 0xffffu
 #define MAGIC_SLEEP 0xfffeu
@@ -1523,8 +1553,6 @@ static int dsi_init_fast(void)
 	return 0;
 }
 
-#endif
-
 // }}}
 // {{{ TCON0
 
@@ -1584,13 +1612,13 @@ static void tcon0_init(void)
 
 	// DCLK = MIPI_PLL / 4
 	writel_relaxed(SUNXI_LCDC_TCON0_DCLK_ENABLE_1 |
-	       SUNXI_LCDC_TCON0_DCLK_DIV(dclk_div), &lcdc->tcon0_dclk);
+			SUNXI_LCDC_TCON0_DCLK_DIV(dclk_div), &lcdc->tcon0_dclk);
 
 	writel_relaxed(SUNXI_LCDC_TCON0_CTRL_ENABLE |
-	       SUNXI_LCDC_TCON0_CTRL_IF_8080, &lcdc->tcon0_ctrl);
+			SUNXI_LCDC_TCON0_CTRL_IF_8080, &lcdc->tcon0_ctrl);
 
 	writel_relaxed(SUNXI_LCDC_X(PANEL_HDISPLAY) |
-	       SUNXI_LCDC_Y(PANEL_VDISPLAY), &lcdc->tcon0_timing_active);
+			SUNXI_LCDC_Y(PANEL_VDISPLAY), &lcdc->tcon0_timing_active);
 
 #if 0
 	for (int i = 0; i < 6; i++)
@@ -1952,12 +1980,13 @@ void display_board_init(void)
 }
 
 // }}}
+// {{{ Display init
 
 // this initializes DE2 + TCON + DSI + PANEL + BACKLIGHT and creates a framebuffer
 bool display_init(void)
 {
 	tcon0_init();
-#if DUMP_DSI_INIT
+#if DSI_FULL_INIT
 	dsi_init();
 #else
 	dsi_init_fast();
@@ -1970,6 +1999,7 @@ bool display_init(void)
 	return true;
 }
 
+// }}}
 // {{{ Compositor
 
 bool display_frame_done(void)
