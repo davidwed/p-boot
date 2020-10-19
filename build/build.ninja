@@ -2,7 +2,8 @@
 
 ninja_required_version = 1.7
 
-aarch64_prefix = aarch64-linux-musl-
+arm_prefix = arm-none-eabi-
+aarch64_prefix = aarch64-linux-gnu-
 topdir = ..
 srcdir = $topdir/src
 ubootdir = $topdir/src/uboot
@@ -21,6 +22,9 @@ ldflags_bconf = -static -s
 cflags_bsel = 
 cxxflags_bsel = 
 ldflags_bsel = -static -s
+cflags_start32 = -Os -march=armv7-a+neon-vfpv4 -ffreestanding -mthumb
+cxxflags_start32 = 
+ldflags_start32 = -static -nostdlib -T$srcdir/start32.ld -Wl,--gc-sections
 pboot_cflags = -D__KERNEL__ -D__UBOOT__ -D__ARM__ -D__LINUX_ARM_ARCH__=8 -DCONFIG_ARM64 -DCONFIG_MACH_SUN50I -DCONFIG_SUNXI_GEN_SUN6I -DCONFIG_SPL_BUILD -DCONFIG_CONS_INDEX=1 -DCONFIG_SUNXI_DE2 -DCONFIG_SUNXI_A64_TIMER_ERRATUM -DCONFIG_SYS_HZ=1000 -DCONFIG_SUNXI_DRAM_DW -DCONFIG_SUNXI_DRAM_LPDDR3_STOCK -DCONFIG_SUNXI_DRAM_LPDDR3 -DCONFIG_DRAM_CLK=552 -DCONFIG_DRAM_ZQ=3881949 -DCONFIG_NR_DRAM_BANKS=1 -DCONFIG_SUNXI_DRAM_DW_32BIT -DCONFIG_SUNXI_DRAM_MAX_SIZE=0xC0000000 -DCONFIG_DRAM_ODT_EN -DCONFIG_SYS_CLK_FREQ=816000000 -DCONFIG_SYS_SDRAM_BASE=0x40000000 -DCONFIG_SUNXI_SRAM_ADDRESS=0x10000 -DCONFIG_SYS_CACHE_SHIFT_6 -DCONFIG_SYS_CACHELINE_SIZE=64 -DCONFIG_MMC_QUIRKS -DCONFIG_MMC2_BUS_WIDTH=8 -DCONFIG_MMC_SUNXI_HAS_NEW_MODE -DCONFIG_MMC_HW_PARTITIONING -DCONFIG_ARCH_FIXUP_FDT_MEMORY -DFDT_ASSUME_MASK=0xff -include linux/kconfig.h -I$builddir -I$srcdir -I$ubootdir/include -I$ubootdir/include/asm-generic -I$ubootdir/arch/arm/include -I$ubootdir/arch/arm/include/asm -I$ubootdir/arch/arm/include/asm/proc-armv -I$ubootdir/arch/arm/include/asm/armv8 -I$ubootdir/arch/arm/include/asm/arch-sunxi -I$ubootdir/scripts/dtc/libfdt -I$ubootdir/lib/libfdt -Wall -Wstrict-prototypes -Wno-format-security -Wno-format-nonliteral -Werror=date-time -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -fno-builtin -ffreestanding -fshort-wchar -fno-strict-aliasing -fno-PIE -fno-stack-protector -fno-delete-null-pointer-checks -fno-pic -mstrict-align -fno-common -ffixed-r9 -ffixed-x18 -march=armv8-a -Os -g0 -ffunction-sections -fdata-sections -mcmodel=tiny -fomit-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables -flto
 pboot_ldflags = -T$linker_script -static -Wl,--gc-sections -Wl,--fix-cortex-a53-843419 -nostdlib -lgcc -flto
 cflags_p_boot = $pboot_cflags -DSERIAL_CONSOLE -DENABLE_GUI -DRETURN_TO_DRAM_MAIN -DDRAM_STACK_SWITCH
@@ -59,6 +63,42 @@ rule ln_s
   command = ln -s $out
   description = LN_S $out
   restat = 1
+
+rule cc_arm32
+  command = ${arm_prefix}gcc -MMD -MT $out -MF $out.d $cflags -c $in -o $out
+  description = CC $out
+  depfile = $out.d
+  deps = gcc
+
+rule cxx_arm32
+  command = ${arm_prefix}g++ -MMD -MT $out -MF $out.d $cxxflags -c $in -o $out
+  description = CXX $out
+  depfile = $out.d
+  deps = gcc
+
+rule as_arm32
+  command = ${arm_prefix}as -o $out $in
+  description = AS $out
+
+rule link_arm32
+  command = ${arm_prefix}gcc -o $out $cflags $ldflags -Wl,--start-group $in $libs -Wl,--end-group
+  description = LINK $out
+
+rule size_arm32
+  command = ${arm_prefix}size $in > $out
+  description = SIZE $out
+
+rule elf2bin_arm32
+  command = ${arm_prefix}objcopy -O binary $in $out
+  description = OBJCOPY $out
+
+rule elf2ihex_arm32
+  command = ${arm_prefix}objcopy $opts -O ihex $in $out
+  description = OBJCOPY $out
+
+rule elf2as_arm32
+  command = ${arm_prefix}objdump -D $in > $out
+  description = OBJDUMP $out
 
 rule cc
   command = ${aarch64_prefix}gcc -MMD -MT $out -MF $out.d $cflags -c $in -o $out
@@ -173,7 +213,20 @@ build $builddir/p-boot-select: link $builddir/p-boot-select.objs/bootsel.o
   libs = 
   cflags = $cflags_bsel
 
-build $builddir/p-boot/bin.elf.objs/start.o: cc $srcdir/start.S
+build $builddir/p-boot-start32.objs/start32.o: cc_arm32 $srcdir/start32.S
+  cflags = $cflags_start32 -D__ASSEMBLY__
+
+build $builddir/p-boot-start32.objs/start321.o: cc_arm32 $srcdir/start32.c
+  cflags = $cflags_start32
+
+build $builddir/p-boot-start32: link_arm32 $builddir/p-boot-start32.objs/start32.o $builddir/p-boot-start32.objs/start321.o | $srcdir/start32.ld
+  ldflags = $ldflags_start32
+  libs = 
+  cflags = $cflags_start32
+
+build $builddir/p-boot-start32.bin: elf2bin_arm32 $builddir/p-boot-start32
+
+build $builddir/p-boot/bin.elf.objs/start.o: cc $srcdir/start.S | $builddir/p-boot-start32.bin
   cflags = $cflags_p_boot -D__ASSEMBLY__
 
 build $builddir/p-boot/bin.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
@@ -297,7 +350,7 @@ build $builddir/p-boot/bin.as: elf2as $builddir/p-boot/bin.elf
 
 build $builddir/p-boot/bin.size: size $builddir/p-boot/bin.elf
 
-build $builddir/p-boot-serial/bin.elf.objs/start.o: cc $srcdir/start.S
+build $builddir/p-boot-serial/bin.elf.objs/start.o: cc $srcdir/start.S | $builddir/p-boot-start32.bin
   cflags = $cflags_p_boot_serial -D__ASSEMBLY__
 
 build $builddir/p-boot-serial/bin.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
@@ -421,7 +474,7 @@ build $builddir/p-boot-serial/bin.as: elf2as $builddir/p-boot-serial/bin.elf
 
 build $builddir/p-boot-serial/bin.size: size $builddir/p-boot-serial/bin.elf
 
-build $builddir/p-boot-tiny/bin.elf.objs/start.o: cc $srcdir/start.S
+build $builddir/p-boot-tiny/bin.elf.objs/start.o: cc $srcdir/start.S | $builddir/p-boot-start32.bin
   cflags = $cflags_p_boot_tiny -D__ASSEMBLY__
 
 build $builddir/p-boot-tiny/bin.elf.objs/main.o: cc $srcdir/main.c | $builddir/build-ver.h
@@ -545,7 +598,7 @@ build $builddir/p-boot-tiny/bin.as: elf2as $builddir/p-boot-tiny/bin.elf
 
 build $builddir/p-boot-tiny/bin.size: size $builddir/p-boot-tiny/bin.elf
 
-build $builddir/p-boot-dtest/bin.elf.objs/start.o: cc $srcdir/start.S
+build $builddir/p-boot-dtest/bin.elf.objs/start.o: cc $srcdir/start.S | $builddir/p-boot-start32.bin
   cflags = $cflags_p_boot_dtest -D__ASSEMBLY__
 
 build $builddir/p-boot-dtest/bin.elf.objs/dtest.o: cc $srcdir/dtest.c | $builddir/build-ver.h
