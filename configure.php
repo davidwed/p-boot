@@ -323,10 +323,14 @@ $all_deps = [];
 
 $topdir = realpath(dirname(__FILE__));
 
-$n->set_global('aarch64_prefix', 'aarch64-linux-musl-');
+$n->set_global('arm_prefix', 'arm-none-eabi-');
+$n->set_global('aarch64_prefix', 'aarch64-linux-gnu-');
 if (file_exists('config.ini')) {
 	$ini = new ini_file('config.ini');
-	$n->set_global('aarch64_prefix', $ini->aarch64_prefix);
+	if ($ini->aarch64_prefix)
+		$n->set_global('aarch64_prefix', $ini->aarch64_prefix);
+	if ($ini->arm_prefix)
+		$n->set_global('arm_prefix', $ini->arm_prefix);
 }
 
 $n->set_global('topdir', '.');
@@ -358,6 +362,7 @@ add_command('clean', 'ninja -t clean');
 $n->set_global('linker_script', '$srcdir/p-boot.ld');
 $n->set_global('startup_code', '$srcdir/start.S');
 
+setup_gnu_toolchain('${arm_prefix}', 'arm32');
 setup_gnu_toolchain('${aarch64_prefix}');
 setup_gnu_toolchain('', 'native');
 
@@ -403,6 +408,24 @@ $all_deps[] = add_cc_link_build([
 	'cflags' => '',
 	'ldflags' => '-static -s',
 ]);
+
+// p-boot 32bit preamble
+
+$start32_elf = add_cc_link_build([
+	'toolchain' => 'arm32',
+	'name' => 'start32',
+	'output' => '$builddir/p-boot-start32',
+	'sources' => [
+		'$srcdir/start32.S',
+		'$srcdir/start32.c',
+	],
+	'cflags' => '-Os -march=armv7-a+neon-vfpv4 -ffreestanding -mthumb',
+	'ldflags' => '-static -nostdlib -T$srcdir/start32.ld -Wl,--gc-sections',
+	'link_deps' => ['$srcdir/start32.ld'],
+]);
+
+$start32_bin = '$builddir/p-boot-start32.bin';
+$n->add_build('elf2bin_arm32', [$start32_bin], [$start32_elf]);
 
 // p-boot
 
@@ -568,10 +591,10 @@ function p_boot($conf) {
 			'$ubootdir/drivers/mmc/sunxi_mmc.c',
 			'$ubootdir/common/fdt_support.c',
 			'$ubootdir/lib/time.c',
-
 		],
 		'obj_deps' => [
 			$main_c => '$builddir/build-ver.h',
+			'$srcdir/start.S' => $GLOBALS['start32_bin'],
 		],
 		'cflags' => implode(' ', flat($conf['cflags'])),
 		'ldflags' => implode(' ', flat($conf['ldflags'])),
@@ -633,6 +656,7 @@ p_boot([
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
+
 p_boot([
 	'name' => 'p-boot-dtest',
 	'main' => '$srcdir/dtest.c',
@@ -658,7 +682,8 @@ $n->add_build('configure', ['build.ninja'], ['$topdir/configure.php'])
 $n->write($topdir . "/build.ninja");
 
 @mkdir("build");
-$pn->set_global('aarch64_prefix', 'aarch64-linux-musl-');
+$pn->set_global('arm_prefix', 'arm-none-eabi-');
+$pn->set_global('aarch64_prefix', 'aarch64-linux-gnu-');
 $pn->set_global('builddir', '.');
 $pn->set_global('topdir', '..');
 $pn->write($topdir . "/build/build.ninja");

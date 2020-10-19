@@ -53,6 +53,7 @@
 
 struct globals {
 	uint32_t dram_size;
+	uint32_t boot_source;
 
 	// storage for stdout
 	char* log_start;
@@ -1284,6 +1285,9 @@ static void boot_gui(struct bootfs* fs)
 
 	gui_menu_add_item(m, 0, "", 0);
 	//gui_menu_add_item(m, 100, "Console ->", 0xff770011);
+	if (globals->boot_source == SUNXI_BOOTED_FROM_MMC0)
+		gui_menu_add_item(m, 103, "Boot from eMMC", 0xff2211ff);
+	gui_menu_add_item(m, 102, "Reboot to FEL", 0xff11ff11);
 	gui_menu_add_item(m, 101, "Poweroff", 0xffff2211);
 	if (rtcsel.def >= 0)
 		gui_menu_set_selection(m, rtcsel.def);
@@ -1377,6 +1381,14 @@ static void boot_gui(struct bootfs* fs)
 			int id = gui_menu_get_selection(m);
 			if (id == 101) {
 				state = STATE_OFF;
+			} else if (id == 102) {
+				// reboot to FEL
+				writel(1, SUNXI_RTC_BASE + 0x104);
+				soc_reset();
+			} else if (id == 103) {
+				// reboot to eMMC
+				writel(2, SUNXI_RTC_BASE + 0x104);
+				soc_reset();
 			} else if (id <= 32) {
 				state = STATE_BOOT;
 				boot_sel = id;
@@ -1392,6 +1404,7 @@ void main(void)
 	struct mmc* mmc;
 
 	globals->board_rev = detect_pinephone_revision();
+	globals->boot_source = get_boot_source();
 
 	/*
 	uint32_t sid[4];
@@ -1406,7 +1419,7 @@ void main(void)
 
 	// set CPU voltage to high and increase the clock to the highest OPP
 
-	printf("Boot Source: %x\n", get_boot_source());
+	printf("Boot Source: %x\n", globals->boot_source);
 
 	__attribute__((unused))
 	enum {SD, eMMC} source = eMMC;
