@@ -85,11 +85,11 @@ static void soc_reset(void)
 	panic(13, "SoC reset failed");
 }
 
-static void wdog_ping(void)
+// timeout is 0 - 11, 0 = 0.5s, 1 = 1s ... 6 = 6s, 7 = 8s ... 11 = 16s
+static void wdog_ping(uint32_t timeout)
 {
-	/* Set the watchdog for its shortest interval (.5s) and wait */
 	writel(1, (ulong)(SUNXI_TIMER_BASE + 0xB4));
-	writel(0x31, (ulong)(SUNXI_TIMER_BASE + 0xB8));
+	writel(0x1 | (timeout << 4), (ulong)(SUNXI_TIMER_BASE + 0xB8));
 	writel((0xa57 << 1) | 1, (ulong)(SUNXI_TIMER_BASE + 0xB0));
 }
 
@@ -114,7 +114,7 @@ void main(void)
 	console_init();
 	lradc_enable();
 
-	wdog_ping();
+	wdog_ping(8); // 10s
 
 	puts("p-boot display program (version " VERSION " built " BUILD_DATE ")\n");
 
@@ -144,9 +144,9 @@ void main(void)
 	display_init();
 
 	// 45x45 or 90x90
-	for (unsigned x = 0; x < 45; x++)
-		for (unsigned y = 0; y < 45; y++)
-			vidconsole_set_xy(sys_console, x, y, '*', 0x00ff1133, 0);
+//	for (unsigned x = 0; x < 45; x++)
+//		for (unsigned y = 0; y < 45; y++)
+//			vidconsole_set_xy(sys_console, x, y, '*', 0x00ff1133, 0);
 
 	vidconsole_redraw(sys_console);
 	udelay(160000);
@@ -162,6 +162,7 @@ void main(void)
 	d->planes[0].dst_w = 720;
 	d->planes[0].dst_h = 1440;
 	d->planes[1].fb_start = 0x48000000;
+	d->planes[1].fb_start = 0;
 	d->planes[1].fb_pitch = 720 * 4;
 	d->planes[1].src_w = 600;
 	d->planes[1].src_h = 600;
@@ -171,21 +172,32 @@ void main(void)
 	d->planes[1].dst_y = 52;
 	display_commit(d);
 
+	ulong t0;
+	int frames = 0;
 	while (1) {
 		gui_get_events(g);
 		if (g->events & BIT(EV_VBLANK)) {
+			frames++;
+			if (frames == 1) {
+				t0 = timer_get_boot_us();
+			} else if (frames == 121) {
+				printf("Framerate: %lld mHz\n", 120ull*1000*1000*1000 / (timer_get_boot_us() - t0));
+				break;
+			}
+
 			display_commit(g->display);
 		}
 	}
 
-	udelay(4000000);
+	vidconsole_redraw(sys_console);
 
 	// mark end of p-boot by switching to red led
 	green_led_set(0);
 	red_led_set(1);
 
-	puts("Reset!\n");
 	udelay(2000000);
+
+	puts("Reset!\n");
 	soc_reset();
 
 	panic(1, "Done");
