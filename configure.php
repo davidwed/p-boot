@@ -663,7 +663,10 @@ p_boot([
 	'cflags' => [
 		'$pboot_cflags',
 		 '-DSERIAL_CONSOLE',
+		 '-DNORMAL_LOGGING',
 		 '-DVIDEO_CONSOLE',
+//		 '-DDUMP_DSI_INIT=1',
+		 '-DDSI_FULL_INIT=1',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
