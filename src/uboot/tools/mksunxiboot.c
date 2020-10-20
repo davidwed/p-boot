@@ -58,7 +58,9 @@ int gen_check_sum(struct boot_file_head *head_p)
  * to a multiple of 8K, and rejects the image otherwise. MMC-images are fine
  * with 512B blocks. To cater for both, align to the largest of the two.
  */
-#define BLOCK_SIZE 0x2000
+//#define BLOCK_SIZE 0x2000
+// p-boot is used with SD/eMMC only, so 512B is fine
+#define BLOCK_SIZE 0x200
 
 struct boot_img {
 	struct boot_file_head header;
