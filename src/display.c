@@ -59,6 +59,10 @@
 #define DSI_FULL_INIT 0
 #endif
 
+#ifndef DE2_RESIZE
+#define DE2_RESIZE 0
+#endif
+
 //
 // General display enablement flow:
 //

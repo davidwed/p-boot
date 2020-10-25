@@ -629,6 +629,7 @@ p_boot([
 		 '-DENABLE_GUI',
 		 '-DRETURN_TO_DRAM_MAIN',
 		 '-DDRAM_STACK_SWITCH',
+		 '-DDE2_RESIZE=1',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
@@ -668,6 +669,7 @@ p_boot([
 		 '-DVIDEO_CONSOLE',
 //		 '-DDUMP_DSI_INIT=1',
 		 '-DDSI_FULL_INIT=1',
+		 '-DDE2_RESIZE=1',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
