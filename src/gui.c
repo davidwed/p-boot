@@ -209,26 +209,26 @@ void gui_menu_update(struct gui_widget* w)
 				uint32_t fg = 0xff00ff00;
 
 				if (left && top)
-					ch = '/';
+					ch = 0x08;
 				else if (left && bottom)
-					ch = '\\';
+					ch = 0x0a;
 				else if (right && top)
-					ch = '\\';
+					ch = 0x0b;
 				else if (right && bottom)
-					ch = '/';
+					ch = 0x0e;
 				else if (left || right)
-					ch = '|';
-				else if (top || bottom)
-					ch = '=';
+					ch = 0x02;
+				else if (bottom || top)
+					ch = 0x07;
 
 				if (lh_text) {
 					if (x == 2) {
-						ch = '[';
+						ch = 0x11;
 					} else if (x >= 3 && x < lh_text_len + 3) {
 						ch = lh_text[x - 3];
 						fg = lh_text_fg;
 					} else if (x == lh_text_len + 3) {
-						ch = ']';
+						ch = 0x12;
 					}
 				}
 
