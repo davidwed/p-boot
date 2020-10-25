@@ -1709,12 +1709,13 @@ static void tcon0_init(void)
 #define DE2_VI_SCALER_UNIT_BASE 0x20000
 #define DE2_VI_SCALER_UNIT_SIZE 0x20000
 
-static const u32 lan2coefftab16[240] = {
+static const u32 lan2coefftab16[] = {
 	0x00004000, 0x00033ffe, 0x00063efc, 0x000a3bfb,
 	0xff0f37fb, 0xfe1433fb, 0xfd192ffb, 0xfd1f29fb,
 	0xfc2424fc, 0xfb291ffd, 0xfb2f19fd, 0xfb3314fe,
 	0xfb370fff, 0xfb3b0a00, 0xfc3e0600, 0xfe3f0300,
 
+	/*
 	0xff053804, 0xff083801, 0xff0a3700, 0xff0e34ff,
 	0xff1232fd, 0xfe162ffd, 0xfd1b2cfc, 0xfd1f28fc,
 	0xfd2323fd, 0xfc281ffd, 0xfc2c1bfd, 0xfd2f16fe,
@@ -1784,11 +1785,13 @@ static const u32 lan2coefftab16[240] = {
 	0x03161c0b, 0x04171b0a, 0x05171b09, 0x06181a08,
 	0x07191907, 0x081a1806, 0x091a1805, 0x0a1b1704,
 	0x0b1c1603, 0x0d1c1502, 0x0e1d1401, 0x0f1d1301,
+	*/
 };
 
 static int sun8i_ui_scaler_coef_index(unsigned int step)
 {
 	unsigned int scale, int_part, float_part;
+	return 0;
 
 	scale = step >> (SUN8I_UI_SCALER_SCALE_FRAC - 3);
 	int_part = scale >> 3;
