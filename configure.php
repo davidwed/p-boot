@@ -561,6 +561,7 @@ function p_boot($conf) {
 			'$srcdir/mmu.c',
 			'$srcdir/lradc.c',
 			'$srcdir/ccu.c',
+			'$srcdir/storage.c',
 			'$srcdir/display.c',
 			'$srcdir/vidconsole.c',
 			'$srcdir/gui.c',
