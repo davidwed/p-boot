@@ -1693,7 +1693,6 @@ static void tcon0_init(void)
 #define SUN8I_UI_SCALER_SCALE_FRAC		20
 #define SUN8I_UI_SCALER_PHASE_FRAC		20
 #define SUN8I_UI_SCALER_COEFF_COUNT		16
-#define SUN8I_UI_SCALER_SIZE(w, h)		(((h) - 1) << 16 | ((w) - 1))
 
 #define SUN8I_SCALER_GSU_CTRL(base)		((base) + 0x0)
 #define SUN8I_SCALER_GSU_OUTSIZE(base)		((base) + 0x40)
@@ -1815,16 +1814,14 @@ static void mixer_write(uint32_t off, uint32_t v)
 {
 	uint32_t base = SUNXI_DE2_MUX0_BASE;
 
-	writel(v, (ulong)base + off);
+	writel_relaxed(v, (ulong)base + off);
 }
 
-static void sun8i_ui_scaler_setup(int layer,
-				  u32 src_w, u32 src_h, u32 dst_w, u32 dst_h,
-				  u32 hscale, u32 vscale, u32 hphase, u32 vphase)
+static void sun8i_ui_scaler_setup(int layer, u32 insize, u32 outsize,
+				  u32 hscale, u32 vscale)
 {
-	u32 insize, outsize;
+	u32 base, hphase = 0, vphase = 0;
 	int i, offset;
-	u32 base;
 
 	base = DE2_VI_SCALER_UNIT_BASE +
 		DE2_VI_SCALER_UNIT_SIZE * 1 +
@@ -1832,11 +1829,8 @@ static void sun8i_ui_scaler_setup(int layer,
 
 	hphase <<= SUN8I_UI_SCALER_PHASE_FRAC - 16;
 	vphase <<= SUN8I_UI_SCALER_PHASE_FRAC - 16;
-	hscale <<= SUN8I_UI_SCALER_SCALE_FRAC - 16;
-	vscale <<= SUN8I_UI_SCALER_SCALE_FRAC - 16;
-
-	insize = SUN8I_UI_SCALER_SIZE(src_w, src_h);
-	outsize = SUN8I_UI_SCALER_SIZE(dst_w, dst_h);
+	//hscale <<= SUN8I_UI_SCALER_SCALE_FRAC - 16;
+	//vscale <<= SUN8I_UI_SCALER_SCALE_FRAC - 16;
 
 	mixer_write(SUN8I_SCALER_GSU_OUTSIZE(base), outsize);
 	mixer_write(SUN8I_SCALER_GSU_INSIZE(base), insize);
@@ -2040,21 +2034,51 @@ void display_commit(struct display* d)
 		if (i == 0)
 			format = SUNXI_DE2_UI_CFG_ATTR_FMT(SUNXI_DE2_FORMAT_XRGB_8888);
 
-		if (!p->fb_start) {
+		/*
+		 * We need to clamp output to the display panel area.
+		 *
+		 * If dst_w/h == src_w/h we just clip the dst and src
+		 * areas in the same way.
+		 *
+		 * If dst_w/h != src_w/h, that means that output is scaled.
+		 * We need to clip the dst area to the display size, but src
+		 * area needs to be cliped according to the src/dst scale.
+		 */
+		u32 dst_ox = -min_t(int, p->dst_x, 0);
+		u32 dst_oy = -min_t(int, p->dst_y, 0);
+		u32 dst_x = clamp(p->dst_x, 0, PANEL_WIDTH);
+		u32 dst_y = clamp(p->dst_y, 0, PANEL_HEIGHT);
+		u32 dst_w = clamp((int)p->dst_w - (int)dst_ox, 0, (int)PANEL_WIDTH - (int)dst_x);
+		u32 dst_h = clamp((int)p->dst_h - (int)dst_oy, 0, (int)PANEL_HEIGHT - (int)dst_y);
+
+		u32 src_x = p->src_x + dst_ox * p->src_w / p->dst_w;
+		u32 src_y = p->src_y + dst_oy * p->src_h / p->dst_h;
+		u32 src_w = dst_w * p->src_w / p->dst_w;
+		u32 src_h = dst_h * p->src_h / p->dst_h;
+
+		u32 fb_start;
+		if (src_w == 0 || src_h == 0 || p->fb_start == 0)
+			fb_start = 0;
+		else
+			fb_start = p->fb_start + 4 * src_x + src_y * p->fb_pitch;
+
+		if (!fb_start) {
 			// disable overlay and pipe
 			writel_relaxed(0, &de_ui_regs->cfg[0].attr);
-			//sun8i_ui_scaler_disable(i);
+#if DE2_RESIZE
+			sun8i_ui_scaler_disable(i);
+#endif
 			continue;
 		}
 
-		//u32 fb_size = SUNXI_DE2_WH(p->fb_width, p->fb_height);
-		u32 src_size = SUNXI_DE2_WH(p->src_w, p->src_h);
-		u32 dst_size = SUNXI_DE2_WH(p->dst_w, p->dst_h);
+		u32 src_size = SUNXI_DE2_WH(src_w, src_h);
+		u32 dst_size = SUNXI_DE2_WH(dst_w, dst_h);
+		uint32_t xy = SUNXI_DE2_XY(dst_x, dst_y);
 
 		// overlay
 		writel_relaxed(SUNXI_DE2_UI_CFG_ATTR_EN | (2 << 1) | ((255 - (p->alpha % 256)) << 24) | format, &de_ui_regs->cfg[0].attr);
 		//writel_relaxed(SUNXI_DE2_UI_CFG_ATTR_EN | format, &de_ui_regs->cfg[0].attr);
-		writel_relaxed(p->fb_start, &de_ui_regs->cfg[0].top_laddr);
+		writel_relaxed(fb_start, &de_ui_regs->cfg[0].top_laddr);
 		writel_relaxed(p->fb_pitch, &de_ui_regs->cfg[0].pitch);
 		writel_relaxed(src_size, &de_ui_regs->cfg[0].size);
 		writel_relaxed(src_size, &de_ui_regs->ovl_size);
@@ -2073,42 +2097,22 @@ void display_commit(struct display* d)
 			fcolor_ctl |= 1 << (pipe);
 		writel_relaxed(dst_size, &de_bld_regs->attr[pipe].insize);
 		writel_relaxed(0xff000000, &de_bld_regs->attr[pipe].fcolor);
-		writel_relaxed(SUNXI_DE2_XY(p->dst_x, p->dst_y), &de_bld_regs->attr[pipe].offset);
+		writel_relaxed(xy, &de_bld_regs->attr[pipe].offset);
 		writel_relaxed(0x03010301, &de_bld_regs->bld_mode[pipe]);
 
 		pipe++;
 
-#if 0
-		// working scaler setup
-		u32 src_w = 720;
-		u32 src_h = 1440;
-		u32 dst_w = 720;
-		u32 dst_h = 1440;
-		u32 hscale = 0x00008000;
-		u32 vscale = 0x00008000;
-		u32 hphase = 0;
-		u32 vphase = 0;
+#if DE2_RESIZE
+		if (src_w != dst_w || src_h != dst_h) {
+			// 0x00010000 = 1:1
+			u32 hscale = (0x10000 << 4) * src_w / dst_w;
+			u32 vscale = (0x10000 << 4) * src_h / dst_h;
 
-		// scale = 
-		// 0x00010000 = 1
-		//
-		// in / scale
-
-		// input
-		//writel(size, &de_ui_regs->cfg[0].size);
-		//writel(size, &de_ui_regs->ovl_size);
-
-		// output
-		writel_relaxed(SUNXI_DE2_WH(0, 0), &de_ui_regs->cfg[0].coord);
-		writel_relaxed(SUNXI_DE2_WH(360, 720), &de_ui_regs->cfg[0].size);
-
-		//writel_relaxed(p->fb_start, &de_ui_regs->cfg[0].top_laddr);
-
-		sun8i_ui_scaler_setup(i, src_w, src_h, dst_w, dst_h,
-				      hscale, vscale, hphase, vphase);
-
-		writel_relaxed(dst_size, &de_glb_regs->size);
-		writel_relaxed(dst_size, &de_bld_regs->attr[0].insize);
+			sun8i_ui_scaler_setup(i, src_size, dst_size,
+					      hscale, vscale);
+		} else {
+			sun8i_ui_scaler_disable(i);
+		}
 #endif
 	}
 

@@ -35,8 +35,8 @@ struct display {
 		uint32_t src_w;
 		uint32_t src_h;
 
-		uint32_t dst_x;
-		uint32_t dst_y;
+		int32_t dst_x;
+		int32_t dst_y;
 		uint32_t dst_w;
 		uint32_t dst_h;
 
