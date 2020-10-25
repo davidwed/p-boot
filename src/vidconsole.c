@@ -23,25 +23,9 @@
 #include <asm/armv8/mmu.h>
 #include <asm/system.h>
 #include <cpu_func.h>
-#include "font.h"
 #include "vidconsole.h"
 
-#if 0
-#define FONT_NAME font_8x8_half
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 8
-#define FONT_CHARS 128
-#elif 0
-#define FONT_NAME font_8x16
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 16
-#define FONT_CHARS 256
-#elif 1
-#define FONT_NAME font_8x16_half
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 16
-#define FONT_CHARS 128
-#endif
+#include "font.h"
 
 static void flush_cache_auto_align(void* buf, size_t len)
 {
@@ -51,6 +35,33 @@ static void flush_cache_auto_align(void* buf, size_t len)
 	len = (len + 2 * CONFIG_SYS_CACHELINE_SIZE) & mask;
 
 	flush_cache(start, len);
+}
+
+static uint8_t* unrle(uint8_t *out, uint8_t *in, int in_len)
+{
+	uint8_t *end = in + in_len;
+	uint8_t packet_header;
+	int i, size;
+
+	while (in < end) {
+		/* read first byte */
+		packet_header = *(in++);
+		size = packet_header & 0x7f;
+
+		if (packet_header & 0x80) {
+			/* run-length packet */
+			for (i = 0; i < size; i++, out++)
+				*out = *in;
+
+			in++;
+		} else {
+			/* non run-length packet */
+			for (i = 0; i < size; i++, in++, out++)
+				*out = *in;
+		}
+	}
+
+	return out;
 }
 
 void vidconsole_init(struct vidconsole* c, uint32_t w, uint32_t h, uint32_t scale,
@@ -82,17 +93,21 @@ void vidconsole_init(struct vidconsole* c, uint32_t w, uint32_t h, uint32_t scal
 		c->bg_color[i] = bg;
 	}
 
-        // build glyph atlas
+	// extract font
+	c->font = malloc(FONT_HEIGHT * FONT_CHARS);
+	unrle(c->font, font_data, sizeof font_data);
 
-	c->atlas = malloc(FONT_WIDTH * FONT_HEIGHT * FONT_CHARS * scale);
+        // build glyph atlas
 
 	// in pixels
 	unsigned char_stride = FONT_WIDTH * scale;
 	unsigned char_size = char_stride * FONT_HEIGHT;
 
+	c->atlas = malloc(char_size * FONT_CHARS * 4);
+
 	for (unsigned ch = 0; ch < FONT_CHARS; ch++) {
 		for (unsigned y = 0; y < FONT_HEIGHT; y++) {
-			uint8_t ln_data = FONT_NAME[ch * FONT_HEIGHT + y];
+			uint8_t ln_data = c->font[ch * FONT_HEIGHT + y];
 
 			for (unsigned x = 0; x < FONT_WIDTH; x++) {
 				uint32_t pix = ln_data & 0x80 ? 0xffffffff : 0;

@@ -32,6 +32,7 @@ struct vidconsole {
 	unsigned fb_height;
 
 	unsigned scale;
+	uint8_t* font;
 	uint32_t* atlas;
 
 	unsigned char* screen;
