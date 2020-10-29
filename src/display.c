@@ -83,14 +83,15 @@
 // {{{ PANEL
 
 #define PANEL_HDISPLAY		(720)
-#define PANEL_HSYNC_START	(720 + 40)
-#define PANEL_HSYNC_END		(720 + 40 + 40)
-#define PANEL_HTOTAL		(720 + 40 + 40 + 40)
+#define PANEL_HSYNC_START	(720 + 30)
+#define PANEL_HSYNC_END		(720 + 30 + 28)
+#define PANEL_HTOTAL		(720 + 30 + 28 + 30)
 #define PANEL_VDISPLAY		(1440)
 #define PANEL_VSYNC_START	(1440 + 18)
 #define PANEL_VSYNC_END		(1440 + 18 + 10)
 #define PANEL_VTOTAL		(1440 + 18 + 10 + 17)
-#define PANEL_CLOCK		(69000)
+//#define PANEL_CLOCK		(PANEL_HTOTAL * PANEL_VTOTAL * 60 / 1000)
+#define PANEL_CLOCK		(72000)
 #define PANEL_LANES		4
 #define PANEL_DSI_BPP		24
 #define PANEL_BURST		0
@@ -147,6 +148,7 @@ dcs_seq_data(ST7703_CMD_SETPOWER_EXT,
 dcs_seq_data(ST7703_CMD_SETRGBIF,
 	     0x10, 0x10, 0x05, 0x05, 0x03, 0xFF, 0x00, 0x00,
 	     0x00, 0x00)
+
 dcs_seq_data(ST7703_CMD_SETSCR,
 	     0x73, 0x73, 0x50, 0x50, 0x00, 0xC0, 0x08, 0x70,
 	     0x00)
@@ -1564,28 +1566,24 @@ static void tcon0_init(void)
 {
 	struct sunxi_ccm_reg * const ccm = (struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 	struct sunxi_lcdc_reg * const lcdc = (struct sunxi_lcdc_reg *)SUNXI_LCD0_BASE;
+	unsigned dclk_div = 6;
 
-	// Panel clock is 69MHz, so:
-	//
-	// PLL3 (VIDEO0) rate = 24000000 * n / m
-	//   range 192MHz - 600MHz
-	// PLL_MIPI
-	//
-	// (24 * 58 / 5) / 4 = 278.4 / 4 = 69.6
-	//
-	// - set TCON0 clock to PLL-VIDEO0(2x)
-	// - set PIXEL clock to TCON0 / 8
-
-	// 297 MHz
+	// PLL_VIDEO0 - range 192MHz - 600MHz
+	//   rate = 24000000 * n / m
+	//   rate = (24 * 99 / 8) = 297
 	writel(CCM_PLL3_CTRL_EN | CCM_PLL3_CTRL_INTEGER_MODE |
 	       CCM_PLL3_CTRL_N(99) | CCM_PLL3_CTRL_M(8),
 	       &ccm->pll3_cfg);
 
-	// MIPI_PLL 12/13 * 297
+	// PLL_MIPI
+	//   rate = PLL_VIDEO0 * K * N / M    M <= 3 * N    K >= 2
+	//   rate = dclk_div * PANEL_CLOCK
+	//   rate = 297 * 16 / 11 = 432MHz
+	//   dclk = 72 MHz
 	writel(CCM_MIPI_PLL_CTRL_LDO_EN, &ccm->mipi_pll_cfg);
 	udelay(100);
-	writel(CCM_MIPI_PLL_CTRL_M(13) | CCM_MIPI_PLL_CTRL_K(2) |
-	       CCM_MIPI_PLL_CTRL_N(6) | CCM_MIPI_PLL_CTRL_EN |
+	writel(CCM_MIPI_PLL_CTRL_N(8) | CCM_MIPI_PLL_CTRL_K(2) |
+	       CCM_MIPI_PLL_CTRL_M(11) | CCM_MIPI_PLL_CTRL_EN |
 	       CCM_MIPI_PLL_CTRL_LDO_EN,
 	       &ccm->mipi_pll_cfg);
 
@@ -1612,9 +1610,7 @@ static void tcon0_init(void)
 
         /* mode set */
 
-	unsigned dclk_div = 4;
-
-	// DCLK = MIPI_PLL / 4
+	// DCLK = MIPI_PLL / 6
 	writel_relaxed(SUNXI_LCDC_TCON0_DCLK_ENABLE_1 |
 			SUNXI_LCDC_TCON0_DCLK_DIV(dclk_div), &lcdc->tcon0_dclk);
 
