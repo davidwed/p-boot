@@ -624,6 +624,7 @@ p_boot([
 	'cflags' => [
 		'$pboot_cflags',
 //		 '-DPBOOT_FDT_LOG',
+//		 '-DNORMAL_LOGGING',
 //		 '-DVIDEO_CONSOLE',
 		 '-DSERIAL_CONSOLE',
 		 '-DENABLE_GUI',
