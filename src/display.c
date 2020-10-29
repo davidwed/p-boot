@@ -749,7 +749,9 @@ static uint32_t dsi_read(unsigned long reg)
 static void dsi_write(unsigned long reg, uint32_t val)
 {
 #if DUMP_DSI_INIT
-	printf("{ 0x%04lx, 0x%08x },\n", reg, val);
+	bool skip = (reg == 0x0200 && val == 0x06000200) || (reg == 0x0048 && val == 0x000f0004);
+	if (!skip)
+		printf("\t{ 0x%04lx, 0x%08x },\n", reg, val);
 #endif
 	writel(val, DSI_BASE + reg);
 }
@@ -759,9 +761,9 @@ static void dsi_update_bits(unsigned long reg, uint32_t mask, uint32_t val)
 	uint32_t tmp = readl(DSI_BASE + reg);
 #if DUMP_DSI_INIT
 	if (reg == 0x10 && mask == 1 && val == 1) {
-		printf("{ MAGIC_COMMIT, 0 },\n");
+		printf("\t{ MAGIC_COMMIT, 0 },\n");
 	} else {
-		printf("0x%08lx : %08x -> (%08x) %08x\n", DSI_BASE + reg, tmp, mask, val);
+		printf("dsi_update_bits: 0x%08lx : %08x -> (%08x) %08x\n", DSI_BASE + reg, tmp, mask, val);
 	}
 #endif
 	tmp &= ~mask;
@@ -824,7 +826,7 @@ static u16 sun6i_dsi_get_line_num(void)
 	return PANEL_HTOTAL * Bpp / PANEL_LANES;
 }
 
-#define SUN6I_DSI_TCON_DIV	4
+#define SUN6I_DSI_TCON_DIV	6
 
 static u16 sun6i_dsi_get_drq_edge0(u16 line_num, u16 edge1)
 {
@@ -1198,7 +1200,7 @@ ssize_t mipi_dsi_dcs_write(const u8 *data, size_t len)
 		dsi_write(SUN6I_DSI_CMD_TX_REG(0),
 			  sun6i_dsi_dcs_build_pkt_hdr(MIPI_DSI_DCS_LONG_WRITE, data, len));
 
-		bounce = malloc(len + sizeof(crc) + 4);
+		bounce = zalloc(len + sizeof(crc) + 4);
 
 		memcpy(bounce, data, len);
 		bounce_len += len;
@@ -1243,7 +1245,7 @@ static void dsi_init(void)
          * Enable the DSI block.
          */
 #if DUMP_DSI_INIT
-	printf("struct reg_write dsi_init_seq[] = {\n");
+	printf("struct reg_inst dsi_init_seq[] = {\n");
 #endif
         dsi_write(SUN6I_DSI_CTL_REG, SUN6I_DSI_CTL_EN);
 
@@ -1282,7 +1284,7 @@ static void dsi_init(void)
 	udelay(15000);
 
 #if DUMP_DSI_INIT
-	printf("struct reg_write dsi_panel_init_seq[] = {\n");
+	printf("\nstruct reg_inst dsi_panel_init_seq[] = {\n");
 #endif
 	panel_init();
 #if DUMP_DSI_INIT
