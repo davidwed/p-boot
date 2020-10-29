@@ -289,7 +289,6 @@ void main(void)
 
 	d->planes[0].fb_start = sys_console->fb_start;
 	d->planes[0].fb_pitch = 720 * 4;
-	d->planes[0].fb_size = 1440 * 720 * 4;
 	d->planes[0].src_w = 720;
 	d->planes[0].src_h = 1440;
 	d->planes[0].dst_w = 720;
@@ -298,7 +297,6 @@ void main(void)
 	d->planes[1].fb_start = fb;
 	d->planes[1].fb_start = 0;
 	d->planes[1].fb_pitch = 600 * 4;
-	d->planes[1].fb_size = 1440 * 720 * 4;
 	d->planes[1].src_w = 600;
 	d->planes[1].src_h = 600;
 	d->planes[1].dst_w = 600;
@@ -309,7 +307,6 @@ void main(void)
 	d->planes[2].fb_start = tconsole->fb_start;
 	d->planes[2].fb_start = 0x48000000;
 	//d->planes[2].fb_start = 0;
-	d->planes[2].fb_size = 1440 * 720 * 4;
 	d->planes[2].fb_pitch = 720 * 4;
 	d->planes[2].src_w = 720;
 	d->planes[2].src_h = 1440;
