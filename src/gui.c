@@ -120,6 +120,29 @@ void gui_fini(struct gui* gui)
 
 // menu
 
+static const double sin_0_90[] = {
+	0,
+	0.17364817768937,
+	0.3420201433685,
+	0.50000000005921,
+	0.64278760975637,
+	0.76604444319222,
+	0.86602540385281,
+	0.93969262084047,
+	0.98480775304387,
+	1,
+};
+
+static double xsin(double v)
+{
+	double d_idx = v * (ARRAY_SIZE(sin_0_90) - 1);
+	unsigned idx = d_idx;
+	double s = sin_0_90[idx];
+	double e = sin_0_90[idx + 1];
+
+	return s + (e - s) * (d_idx - (double)idx);
+}
+
 void gui_menu_update(struct gui_widget* w)
 {
 	struct gui_menu* m = container_of(w, struct gui_menu, widget);
@@ -254,14 +277,7 @@ void gui_menu_update(struct gui_widget* w)
 	}
 
 	if (w->gui->events & BIT(EV_VBLANK)) {
-		int alpha = 0;
-		int dst_y = (1440 - c->fb_height - d->planes[1].dst_x);
-		int dur = 10;
-		if (m->anim_ticks <= dur) {
-			alpha = 255 - 255 * m->anim_ticks / dur;
-			dst_y -= 20 * (dur - m->anim_ticks) / dur;
-			m->anim_ticks++;
-		}
+		int dur = 15;
 
 		d->planes[1].fb_start = c->fb_start;
 		d->planes[1].fb_pitch = c->fb_pitch;
@@ -270,8 +286,22 @@ void gui_menu_update(struct gui_widget* w)
 		d->planes[1].dst_w = c->fb_width;
 		d->planes[1].dst_h = c->fb_height;
 		d->planes[1].dst_x = (720 - c->fb_width) / 2;
-		d->planes[1].dst_y = dst_y;
-		d->planes[1].alpha = alpha;
+		d->planes[1].dst_y = (1440 - c->fb_height - d->planes[1].dst_x);
+		d->planes[1].alpha = 0;
+
+		if (m->anim_ticks < dur) {
+			double pct = 1.0 - xsin((double)m->anim_ticks / dur);
+
+			d->planes[1].alpha = (double)150 * pct;
+
+			d->planes[1].dst_y -= d->planes[1].dst_h * pct / 2;
+			d->planes[1].dst_x -= d->planes[1].dst_w * pct / 2;
+
+			d->planes[1].dst_w += d->planes[1].dst_w * pct;
+			d->planes[1].dst_h += d->planes[1].dst_h * pct;
+
+			m->anim_ticks++;
+		}
 	}
 }
 
