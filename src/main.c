@@ -1079,6 +1079,16 @@ static bool load_splash(struct bootfs* fs, struct bootfs_conf* bc, uint32_t dest
 	return false;
 }
 
+static const char* get_boot_source_name(void)
+{
+	switch (globals->boot_source) {
+		case SUNXI_BOOTED_FROM_MMC0: return "SD";
+		case SUNXI_BOOTED_FROM_MMC2: return "eMMC";
+		case SUNXI_BOOTED_FROM_FEL: return "FEL";
+		default: return "?";
+	}
+}
+
 static void boot_gui(struct bootfs* fs)
 {
 	struct display* d = zalloc(sizeof *d);
@@ -1125,7 +1135,26 @@ static void boot_gui(struct bootfs* fs)
 		title = (const char*)fs->sb->device_id;
 	}
 	gui_menu_set_title(m, POS_TOP_LEFT, title, 0xeeddeeff, 0x55000000);
-	gui_menu_set_title(m, POS_BOTTOM_LEFT, "p-boot 1.0 / xnux.eu", 0xeeddeeff, 0x55000000);
+
+	struct strbuf* footer = strbuf_new(64);
+	strbuf_printf(footer, "p-boot %s, bootfs %s, ", get_boot_source_name(), globals->mmc_no == 0 ? "SD" : "eMMC");
+
+	if (globals->bat_present) {
+		if (globals->bat_safe_mode)
+			strbuf_putc(footer, 'S');
+		if (globals->uvlo_shutdown)
+			strbuf_putc(footer, 'U');
+
+		if (globals->bat_capacity >= 0) {
+			strbuf_putc(footer, 0x18 - !!globals->bat_charging);
+			strbuf_putc(footer, 0x13 + globals->bat_capacity * 3 / 100);
+			strbuf_printf(footer, " %u%%", globals->bat_capacity);
+		}
+	} else {
+		strbuf_printf(footer, "NO BAT");
+	}
+
+	gui_menu_set_title(m, POS_BOTTOM_LEFT, strbuf_to_cstr(footer), 0xeeddeeff, 0x55000000);
 
 	int flips = 0;
 	int boot_sel = -1;
