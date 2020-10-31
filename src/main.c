@@ -59,6 +59,8 @@ struct globals {
 	char* log_start;
 	char* log_end;
 
+	uintptr_t linux_image_pa;
+
 	uint8_t* heap_end;
 	ulong t0;
 
@@ -78,7 +80,6 @@ struct globals {
 };
 
 struct globals* globals = NULL;
-
 
 // }}}
 // {{{ Simple heap implementation
@@ -624,6 +625,19 @@ struct boot
 	struct bootfs_conf* conf;
 };
 
+struct kernel_image_hdr {
+	u32 code0;                    /* Executable code */
+	u32 code1;                    /* Executable code */
+	u64 text_offset;              /* Image load offset, little endian */
+	u64 image_size;               /* Effective Image size, little endian */
+	u64 flags;                    /* kernel flags, little endian */
+	u64 res2;		      /* reserved */
+	u64 res3;		      /* reserved */
+	u64 res4;                     /* reserved */
+	u32 magic;		      /* Magic number, little endian, "ARM\x64" */
+	u32 res5;                     /* reserved (used for PE COFF offset) */
+};
+
 static const char* img_names[] = {
 	[IMAGE_ATF] = "ATF(+SCP)",
 	[IMAGE_FDT] = "FDT",
@@ -709,6 +723,21 @@ bool boot_prepare(struct boot* boot, struct bootfs* fs, struct bootfs_conf* bc)
 			       (void*)(uintptr_t)boot->image_dests[IMAGE_FDT2],
 			       boot->image_sizes[IMAGE_FDT2]);
 		}
+	}
+
+	struct kernel_image_hdr* h = (void*)(uintptr_t)boot->image_dests[IMAGE_LINUX];
+	if (h->magic != 0x644d5241) {
+                printf("Linux image is not an arm64 kernel image\n");
+		return false;
+	}
+
+	globals->linux_image_pa = boot->image_dests[IMAGE_LINUX];
+	if (h->text_offset != 0) {
+		// relocate kernel with a non-0 text_offset
+		globals->linux_image_pa += h->text_offset;
+		memmove((void*)(uintptr_t)globals->linux_image_pa,
+			(void*)(uintptr_t)boot->image_dests[IMAGE_LINUX],
+			boot->image_sizes[IMAGE_LINUX]);
 	}
 
 	boot->fdt = (void*)(uintptr_t)boot->image_dests[IMAGE_FDT];
@@ -857,7 +886,7 @@ static void jump_to_atf(void)
 
         /* BL33 (Linux) expects to receive FDT blob through x0 */
 	bl33_ep_info->args.arg0 = FDT_BLOB_PA;
-	bl33_ep_info->pc = LINUX_IMAGE_PA;
+	bl33_ep_info->pc = globals->linux_image_pa;
 	bl33_ep_info->spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
 				     DISABLE_ALL_EXECPTIONS);
 
