@@ -1319,9 +1319,6 @@ void main(void)
 		display_commit(d);
 
 		while (!display_frame_done());
-//		while (!display_frame_done());
-
-		// wait for vblank maybe
 		backlight_enable(60);
 
 		boot_selection(fs, sbc, 0x48000000);
