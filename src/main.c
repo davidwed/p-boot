@@ -63,6 +63,15 @@ struct globals {
 	ulong t0;
 
 	int board_rev;
+
+	bool uvlo_shutdown;
+	bool vbus_powerup;
+	bool pok_powerup;
+	bool vbus_preset;
+	bool bat_present;
+	bool bat_safe_mode;
+	bool bat_charging;
+	int bat_capacity;
 };
 
 struct globals* globals = NULL;
@@ -371,6 +380,41 @@ static void pmic_setup_ocv_table(void)
 	// OCV table 0xc0 - 0xdf
         for (int i = 0; i < ARRAY_SIZE(ocv_tab); i++)
                 pmic_write(0xc0 + i, ocv_tab[i]);
+}
+
+static void pmic_read_status(void)
+{
+        int status0, status1, status2, capacity;
+
+	// read status registers
+	status0 = pmic_read(0x00);
+	status1 = pmic_read(0x01);
+	status2 = pmic_read(0x02);
+
+	// clear power up status
+	pmic_write(0x02, 0xff);
+
+	// setup PMIC status in globals
+	if (status0 >= 0 && status1 >= 0 && status2 >= 0) {
+		globals->uvlo_shutdown = status2 & BIT(5);
+		globals->vbus_powerup = status2 & BIT(1);
+		globals->pok_powerup = status2 & BIT(0);
+		globals->vbus_preset = status0 & BIT(5);
+		if (status1 & BIT(5) && status1 & BIT(4)) {
+			globals->bat_present = true;
+			globals->bat_charging = status0 & BIT(2);
+			if (status1 & BIT(3))
+				globals->bat_safe_mode = true;
+		}
+	}
+
+	// battery capacity
+	globals->bat_capacity = -1;
+	if (globals->bat_present) {
+		int bat_capacity = pmic_read(0xb9);
+		if (bat_capacity >= 0 && bat_capacity & 0x80)
+			globals->bat_capacity = bat_capacity & 0x7f;
+	}
 }
 
 // }}}
@@ -1166,10 +1210,10 @@ void main(void)
 	printf("SoC ID: %08x:%08x:%08x:%08x\nBoard rev: 1.%d\n", sid[0], sid[1], sid[2], sid[3], board_rev);
           */
 
-        //rtc_fixup();
 
 	pmic_setup_bat_temp_sensor();
-	//pmic_setup_ocv_table();
+	pmic_setup_ocv_table();
+	pmic_read_status();
 
 	// set CPU voltage to high and increase the clock to the highest OPP
 

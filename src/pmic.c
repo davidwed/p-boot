@@ -288,7 +288,7 @@ void pmic_init(void)
         pmic_write(0x21, 0x4b);
 
 	// disable temp sensor charger effect
-	pmic_setbits(0x84, BIT(2));
+	//pmic_setbits(0x84, BIT(2));
 
 	// when SDP not detected set 2A VBUS current limit (my charger can do that)
 	pmic_write(0x30, 0x02);
@@ -301,9 +301,6 @@ void pmic_init(void)
 
         // start battery max capacity calibration
         //pmic_setbits(0xb8, BIT(5));
-
-	// clear power up status
-	pmic_write(0x02, 0xff);
 }
 
 void pmic_dump_registers(void)
