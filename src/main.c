@@ -62,6 +62,7 @@ struct globals {
 	uint8_t* heap_end;
 	ulong t0;
 
+	uint32_t sid[4];
 	int board_rev;
 
 	bool uvlo_shutdown;
@@ -247,10 +248,7 @@ static void get_soc_id(uint32_t sid[4])
 
 static bool get_mac_address(unsigned no, uint8_t mac_addr[6])
 {
-	uint32_t sid[4];
-
-	get_soc_id(sid);
-
+	uint32_t* sid = globals->sid;
 	if (sid[0] == 0)
 		return false;
 
@@ -1203,13 +1201,7 @@ void main(void)
 
 	globals->board_rev = detect_pinephone_revision();
 	globals->boot_source = get_boot_source();
-
-	/*
-	uint32_t sid[4];
-	get_soc_id(sid);
-	printf("SoC ID: %08x:%08x:%08x:%08x\nBoard rev: 1.%d\n", sid[0], sid[1], sid[2], sid[3], board_rev);
-          */
-
+	get_soc_id(globals->sid);
 
 	pmic_setup_bat_temp_sensor();
 	pmic_setup_ocv_table();
