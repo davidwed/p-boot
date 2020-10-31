@@ -1985,6 +1985,7 @@ void display_board_init(void)
 bool display_init(void)
 {
 	tcon0_init();
+
 #if DSI_FULL_INIT
 	dsi_init();
 #else

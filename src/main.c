@@ -1042,9 +1042,8 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 	// configures TS correctly and we want battery thermal protection
 	// to function correctly
         int adc_node = fdt_path_offset(fdt, "/soc/rsb@1f03400/pmic@3a3/adc");
-	if (adc_node >= 0) {
+	if (adc_node >= 0)
 		fdt_delprop(fdt, adc_node, "x-powers,ts-as-gpadc");
-	}
 
         const char* model = fdt_getprop(fdt, 0, "model", NULL);
         if (model)
