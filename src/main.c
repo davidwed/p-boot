@@ -73,6 +73,8 @@ struct globals {
 	bool bat_safe_mode;
 	bool bat_charging;
 	int bat_capacity;
+
+	int mmc_no;
 };
 
 struct globals* globals = NULL;
@@ -1003,7 +1005,7 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 	if (splash_fb)
 		fdt_setup_framebuffer(boot, splash_fb);
 
-	//boot_append_bootargs(boot, source == SD ? "bootdev=sd" : "bootdev=emmc");
+	//boot_append_bootargs(boot, globals->mmc_no == 0 ? "bootdev=sd" : "bootdev=emmc");
 
 	void* fdt = boot->fdt;
 
@@ -1197,7 +1199,7 @@ static void boot_gui(struct bootfs* fs)
 
 void main(void)
 {
-	struct mmc* mmc;
+	struct mmc* mmc = NULL;
 
 	globals->board_rev = detect_pinephone_revision();
 	globals->boot_source = get_boot_source();
@@ -1211,9 +1213,9 @@ void main(void)
 
 	printf("Boot Source: %x\n", globals->boot_source);
 
-	__attribute__((unused))
-	enum {SD, eMMC} source = eMMC;
+
 	struct bootfs* fs = NULL;
+	globals->mmc_no = 2;
 
 	// we always boot from eMMC, even when bootloader started from SD card
 	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
@@ -1229,7 +1231,7 @@ void main(void)
 			//goto boot_ui;
 		}
 
-		source = SD;
+		globals->mmc_no = 0;
 	}
 
 	int key = lradc_get_pressed_key();
