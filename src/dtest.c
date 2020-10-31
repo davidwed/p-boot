@@ -294,7 +294,7 @@ void main(void)
 	d->planes[0].dst_w = 720;
 	d->planes[0].dst_h = 1440;
 
-	d->planes[1].fb_start = fb;
+	d->planes[1].fb_start = (uintptr_t)fb;
 	d->planes[1].fb_start = 0;
 	d->planes[1].fb_pitch = 600 * 4;
 	d->planes[1].src_w = 600;
