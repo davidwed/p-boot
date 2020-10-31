@@ -42,6 +42,7 @@
 #include "vidconsole.h"
 #include "gui.h"
 #include "storage.h"
+#include "strbuf.h"
 #include <build-ver.h>
 
 #define DRAM_MAIN         0x80000000

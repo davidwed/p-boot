@@ -564,6 +564,7 @@ function p_boot($conf) {
 			'$srcdir/storage.c',
 			'$srcdir/display.c',
 			'$srcdir/vidconsole.c',
+			'$srcdir/strbuf.c',
 			'$srcdir/gui.c',
 
 			'$ubootdir/arch/arm/cpu/armv8/cache.S',
