@@ -1055,7 +1055,7 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 
 	if (reboot_loop)
 		pmic_reboot();
-		
+
 	boot_perform(boot);
 }
 
@@ -1258,6 +1258,8 @@ static void boot_gui(struct bootfs* fs)
 void main(void)
 {
 	struct mmc* mmc = NULL;
+	struct bootfs* fs = NULL;
+	int key;
 
 	globals->board_rev = detect_pinephone_revision();
 	globals->boot_source = get_boot_source();
@@ -1271,13 +1273,15 @@ void main(void)
 
 	printf("Boot Source: %x\n", globals->boot_source);
 
+	udelay(12000);
+	key = lradc_get_pressed_key();
 
-	struct bootfs* fs = NULL;
 	globals->mmc_no = 2;
 
 	// we always boot from eMMC, even when bootloader started from SD card
 	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
-	mmc = mmc_probe(2);
+	if (key != KEY_VOLUMEUP)
+		mmc = mmc_probe(2);
 	if (!mmc || !(fs = bootfs_open(mmc))) {
 		printf("BOOTFS not found on eMMC, trying SD card\n");
 		mmc = mmc_probe(0);
@@ -1292,11 +1296,11 @@ void main(void)
 		globals->mmc_no = 0;
 	}
 
-	int key = lradc_get_pressed_key();
+	key = lradc_get_pressed_key();
 
 #ifdef ENABLE_GUI
 	/* read volume keys status */
-	if (key == KEY_VOLUMEDOWN)
+	if (key == KEY_VOLUMEDOWN || key == KEY_VOLUMEUP || globals->vbus_powerup)
 		goto display_init;
 
 	struct bootfs_conf* sbc = bootfs_select_configuration(fs);
