@@ -1010,9 +1010,11 @@ void main_sram_only(void)
 
 	ccu_upclock();
 
-// causes intermittent SD/emmc init/load failures
-//	udelay(1000);
-//	clock_set_pll1(1152000000);
+	//XXX: set CPU voltage to high and increase the clock to the highest OPP
+	// causes intermittent SD/emmc init/load failures
+	//
+	// udelay(1000);
+	// clock_set_pll1(1152000000);
 
 	void* dram_stack = malloc(128 * 1024);
 	extern uint32_t _dram_stack_top;
@@ -1267,8 +1269,6 @@ void main(void)
 	pmic_setup_bat_temp_sensor();
 	pmic_setup_ocv_table();
 	pmic_read_status();
-
-	// set CPU voltage to high and increase the clock to the highest OPP
 
 	printf("Boot Source: %x\n", globals->boot_source);
 
