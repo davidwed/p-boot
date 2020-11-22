@@ -1180,7 +1180,7 @@ static void boot_gui(void)
 		gui_menu_set_active(m, rtcsel.def);
 		gui_menu_set_selection(m, rtcsel.def);
 	} else {
-		gui_menu_set_selection(m, 0);
+		gui_menu_set_selection(m, !globals->emmc ? 32 : 0);
 	}
 
 	const char* title = "Boot menu";
