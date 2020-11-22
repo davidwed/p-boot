@@ -177,17 +177,6 @@ static struct bootfs_conf* bootfs_select_configuration(struct bootfs* fs)
 		return NULL;
 	}
 
-#if 0
-	/* override boot configuration based on PMIC data register */
-	int reg = pmic_read_data(0);
-	if (reg >= 0 && (reg & 0x7f) > 0) {
-		bootsel = (reg & 0x7f) - 1;
-		/* reset the PMIC register */
-                if (reg & BIT(7))
-                        pmic_write_data(0, 0);
-		src = "PMIC data";
-	}
-#endif
 
 	if (bootsel > 32) {
 		status = "too big";
