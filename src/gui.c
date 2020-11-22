@@ -265,6 +265,16 @@ void gui_menu_update(struct gui_widget* w)
 				else if (bottom || top)
 					ch = 0x07;
 
+				if (m->n_items > m->scroll_height && right) {
+					if (y == 2 && m->scroll_top > 0) {
+						ch = 0x1e;
+						fg = 0xffffffff;
+					} else if (y == h - 3 && m->scroll_top < m->n_items - m->scroll_height) {
+						ch = 0x1f;
+						fg = 0xffffffff;
+					}
+				}
+
 				if (lh_text) {
 					if (x == 2) {
 						ch = 0x11;
