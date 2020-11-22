@@ -1021,8 +1021,6 @@ void main_sram_only(void)
 	_dram_stack_top = (uintptr_t)((uint8_t*)dram_stack + 128 * 1024);
 }
 
-static bool reboot_loop = false;
-
 static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t splash_fb)
 {
 	//
@@ -1053,9 +1051,6 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 
 	if (!boot_finalize(boot))
 		panic(13, "Failed to finalize boot\n");
-
-	if (reboot_loop)
-		pmic_reboot();
 
 	boot_perform(boot);
 }
@@ -1332,11 +1327,9 @@ display_init:
 boot_ui:
 	boot_gui(fs);
 #else
-//	reboot_loop = true;
 	int sel = 0;
 	if (key == KEY_VOLUMEDOWN) {
 		sel = 1;
-		//reboot_loop = false;
 	} else if (key == KEY_VOLUMEUP)
 		sel = 2;
 
