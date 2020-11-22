@@ -127,7 +127,7 @@ struct bootfs* bootfs_open(struct mmc* mmc)
 
         // collect a list of partitions
 
-	if (!mmc_read_data(mmc, (uintptr_t)buf, 0, 512))
+	if (!mmc || !mmc_read_data(mmc, (uintptr_t)buf, 0, 512))
 		return NULL;
 
 	if (buf[0x1fe] != 0x55 || buf[0x1ff] != 0xaa)

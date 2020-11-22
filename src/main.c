@@ -76,7 +76,9 @@ struct globals {
 	bool bat_charging;
 	int bat_capacity;
 
-	int mmc_no;
+	struct bootfs* sd; // NULL if not loaded or failed
+	struct bootfs* emmc;
+	uint32_t mmc_tried; // bitmask of mmcs that were already loaded
 };
 
 struct globals* globals = NULL;
@@ -126,7 +128,27 @@ void append_log(char c)
 #endif
 
 // }}}
+// {{{ Storage
+
+static void mmc_try_load(uint32_t mask)
+{
+	if (mask & BIT(0) & ~globals->mmc_tried)
+		globals->sd = bootfs_open(mmc_probe(0));
+	if (mask & BIT(2) & ~globals->mmc_tried)
+		globals->emmc = bootfs_open(mmc_probe(2));
+
+	globals->mmc_tried |= mask;
+}
+
+// }}}
 // {{{ Boot configuration selection
+
+/* 0-31 = eMMC, 32-63 = SD, 64 = POWEROFF, 65 = reboot to EMMC, 66 = reboot to FEL */
+enum {
+	BOOTSEL_POWEROFF = 64,
+	BOOTSEL_EMMC,
+	BOOTSEL_FEL,
+};
 
 struct bootsel {
 	int def; // -1 = undefined
@@ -151,17 +173,15 @@ static void rtc_bootsel_set(struct bootsel* sel)
 	writel(v, (ulong)SUNXI_RTC_BASE + 0x100);
 }
 
-static struct bootfs_conf* bootfs_select_configuration(struct bootfs* fs)
+// determine what bootfs option and filesystem to use based on RTC register
+static struct bootfs_conf* bootfs_select_configuration(int* opt,
+						       struct bootfs** fs_out)
 {
-	struct bootfs_conf* bc = fs->confs_blocks;
-	const char* src = "default";
-	const char* status = "ok";
+	struct bootfs* fs = NULL;
+	struct bootfs_conf* bc;
 	struct bootfs_conf* sel = NULL;
-	unsigned bootsel;
 	struct bootsel rtcsel;
-
-	/* select default boot configuration */
-	//bootsel = __be32_to_cpu(fs->sb->default_conf);
+	int bootsel;
 
 	/* override boot configuration based on RTC data register */
 	rtc_bootsel_get(&rtcsel);
@@ -169,32 +189,38 @@ static struct bootfs_conf* bootfs_select_configuration(struct bootfs* fs)
 		rtcsel.next = -1;
 		bootsel = rtcsel.next;
 		rtc_bootsel_set(&rtcsel);
-		src = "RTC next";
 	} else if (rtcsel.def >= 0) {
 		bootsel = rtcsel.def;
-		src = "RTC def";
 	} else {
-		return NULL;
-	}
-
-
-	if (bootsel > 32) {
-		status = "too big";
+		*opt = -1;
 		goto out;
 	}
 
-	if (memcmp(bc[bootsel].magic, ":BFCONF:", 8)) {
-		status = "missing";
+        *opt = bootsel;
+
+	if (bootsel < 32) {
+		mmc_try_load(BIT(2));
+		fs = globals->emmc;
+	} else if (bootsel < 64) {
+		mmc_try_load(BIT(0));
+		fs = globals->sd;
+		bootsel -= 32;
+	} else {
 		goto out;
 	}
+
+	if (!fs)
+		goto out;
+
+	bc = fs->confs_blocks;
+
+	if (memcmp(bc[bootsel].magic, ":BFCONF:", 8))
+		goto out;
 
 	sel = &bc[bootsel];
 
 out:
-	printf("Boot config %u (%s): %s\n", bootsel, src, status);
-	if (sel)
-		printf("Config name: %s\n", (char*)sel->name);
-
+	*fs_out = fs;
 	return sel;
 }
 
@@ -1044,6 +1070,19 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 	boot_perform(boot);
 }
 
+static void reboot_to(int bootsel)
+{
+	if (bootsel == BOOTSEL_FEL) {
+		// reboot to FEL
+		writel(1, SUNXI_RTC_BASE + 0x104);
+		soc_reset();
+	} else if (bootsel == BOOTSEL_EMMC) {
+		// reboot to eMMC
+		writel(2, SUNXI_RTC_BASE + 0x104);
+		soc_reset();
+	}
+}
+
 static bool load_splash(struct bootfs* fs, struct bootfs_conf* bc, uint32_t dest)
 {
 	if (memcmp(bc->magic, ":BFCONF:", 8))
@@ -1074,13 +1113,22 @@ static const char* get_boot_source_name(void)
 	}
 }
 
-static void boot_gui(struct bootfs* fs)
+#define COLOR_NORMAL_ITEM 0xffeeccdd
+#define COLOR_DEFAULT_ITEM 0xff11ff22
+#define COLOR_SD_HEADER 0xffff8569
+#define COLOR_EMMC_HEADER 0xffa0c5ff
+#define COLOR_POWEROFF_ITEM 0xffff2211
+#define COLOR_FEL_ITEM 0xffee77ff
+#define COLOR_HEADER 0xffddee77
+#define COLOR_FOOTER 0xffddee77
+#define COLOR_FOOTER_BAD 0xffff1122
+
+static void boot_gui(void)
 {
 	struct display* d = zalloc(sizeof *d);
 	struct gui* g = zalloc(sizeof *g);
 	struct bootsel rtcsel;
-	uint32_t item_color_default = 0xff11ff22;
-	uint32_t item_color_other = 0xffeeccdd;
+	struct bootfs* fs = globals->emmc ? globals->emmc : globals->sd;
 
 	wdog_disable();
 
@@ -1098,31 +1146,59 @@ static void boot_gui(struct bootfs* fs)
 	rtc_bootsel_get(&rtcsel);
 
 	struct gui_menu* m = gui_menu(g);
-	for (int i = 0; i < 32; i++) {
-		struct bootfs_conf* c = &fs->confs_blocks[i];
-		if (!memcmp(c->magic, ":BFCONF:", 8)) {
-			gui_menu_add_item(m, i, (char*)c->name, rtcsel.def == i ? item_color_default : item_color_other);
+
+	if (globals->emmc || globals->boot_source != SUNXI_BOOTED_FROM_MMC2) {
+		gui_menu_add_item(m, -2, "eMMC:", COLOR_EMMC_HEADER, COLOR_EMMC_HEADER);
+		for (int i = 0; i < 32 && globals->emmc; i++) {
+			struct bootfs_conf* c = &globals->emmc->confs_blocks[i];
+			if (!memcmp(c->magic, ":BFCONF:", 8))
+				gui_menu_add_item(m, i, (char*)c->name, COLOR_NORMAL_ITEM, COLOR_DEFAULT_ITEM);
 		}
+
+		if (globals->boot_source != SUNXI_BOOTED_FROM_MMC2)
+			gui_menu_add_item(m, BOOTSEL_EMMC, "Boot via bootloader on eMMC", COLOR_NORMAL_ITEM, COLOR_DEFAULT_ITEM);
+
+		gui_menu_add_item(m, -2, "", 0, 0);
 	}
 
-	gui_menu_add_item(m, 0, "", 0);
+	if (globals->sd) {
+		gui_menu_add_item(m, -2, "SD:", COLOR_SD_HEADER, COLOR_SD_HEADER);
+		for (int i = 0; i < 32; i++) {
+			struct bootfs_conf* c = &globals->sd->confs_blocks[i];
+			if (!memcmp(c->magic, ":BFCONF:", 8))
+				gui_menu_add_item(m, i + 32, (char*)c->name, COLOR_NORMAL_ITEM, COLOR_DEFAULT_ITEM);
+		}
+
+		gui_menu_add_item(m, -2, "", 0, 0);
+	}
+
 	//gui_menu_add_item(m, 100, "Console ->", 0xff770011);
-	if (globals->boot_source == SUNXI_BOOTED_FROM_MMC0)
-		gui_menu_add_item(m, 103, "Boot from eMMC", 0xff2211ff);
-	gui_menu_add_item(m, 102, "Reboot to FEL", 0xff11ff11);
-	gui_menu_add_item(m, 101, "Poweroff", 0xffff2211);
-	if (rtcsel.def >= 0)
+	gui_menu_add_item(m, BOOTSEL_FEL, "Reboot to FEL", COLOR_FEL_ITEM, COLOR_DEFAULT_ITEM);
+	gui_menu_add_item(m, BOOTSEL_POWEROFF, "Poweroff", COLOR_POWEROFF_ITEM, COLOR_POWEROFF_ITEM);
+
+	if (rtcsel.def >= 0) {
+		gui_menu_set_active(m, rtcsel.def);
 		gui_menu_set_selection(m, rtcsel.def);
+	} else {
+		gui_menu_set_selection(m, 0);
+	}
 
 	const char* title = "Boot menu";
 	if (fs->sb->device_id[0]) {
 		fs->sb->device_id[sizeof(fs->sb->device_id) - 1] = 0;
 		title = (const char*)fs->sb->device_id;
 	}
-	gui_menu_set_title(m, POS_TOP_LEFT, title, 0xeeddeeff, 0x55000000);
+	gui_menu_set_title(m, POS_TOP_LEFT, title, COLOR_HEADER, 0x55000000);
 
 	struct strbuf* footer = strbuf_new(64);
-	strbuf_printf(footer, "p-boot %s, bootfs %s, ", get_boot_source_name(), globals->mmc_no == 0 ? "SD" : "eMMC");
+	strbuf_printf(footer, "p-boot %s, ", get_boot_source_name());
+
+	uint32_t footer_color = (
+		globals->bat_present
+		&& !globals->bat_safe_mode
+		&& !globals->uvlo_shutdown
+		&& globals->bat_capacity > 30) ?
+		COLOR_FOOTER : COLOR_FOOTER_BAD;
 
 	if (globals->bat_present) {
 		if (globals->bat_safe_mode)
@@ -1139,7 +1215,7 @@ static void boot_gui(struct bootfs* fs)
 		strbuf_printf(footer, "NO BAT");
 	}
 
-	gui_menu_set_title(m, POS_BOTTOM_LEFT, strbuf_to_cstr(footer), 0xeeddeeff, 0x55000000);
+	gui_menu_set_title(m, POS_BOTTOM_LEFT, strbuf_to_cstr(footer), footer_color, 0x55000000);
 
 	int flips = 0;
 	int boot_sel = -1;
@@ -1163,11 +1239,14 @@ static void boot_gui(struct bootfs* fs)
 				pmic_poweroff();
 				//soc_reset();
 			} else if (state == STATE_BOOT) {
-				load_splash(fs, &fs->confs_blocks[boot_sel], 0x48000000);
+				struct bootfs* cfs = boot_sel < 32 ? globals->emmc : globals->sd;
+				struct bootfs_conf* c = &cfs->confs_blocks[boot_sel % 32];
+
+				load_splash(cfs, c, 0x48000000);
 				d->planes[1].fb_start = 0;
 				display_commit(g->display);
 				gui_fini(g);
-				boot_selection(fs, &fs->confs_blocks[boot_sel], 0x48000000);
+				boot_selection(cfs, c, 0x48000000);
 				soc_reset();
 			}
 
@@ -1189,10 +1268,13 @@ static void boot_gui(struct bootfs* fs)
 
 		if (m->selection_changed) {
 			int id = gui_menu_get_selection(m);
-			if (id == 101) {
+			if (id == BOOTSEL_POWEROFF) {
 				bootfs_load_file(fs, 0x48000000, "off.argb");
-			} else if (id <= 32) {
-				if (!load_splash(fs, &fs->confs_blocks[id], 0x48000000))
+			} else if (id < 64) {
+				struct bootfs* cfs = id < 32 ? globals->emmc : globals->sd;
+				struct bootfs_conf* c = &cfs->confs_blocks[id % 32];
+
+				if (!load_splash(cfs, c, 0x48000000))
 					bootfs_load_file(fs, 0x48000000, "pboot2.argb");
 			}
 		}
@@ -1200,37 +1282,25 @@ static void boot_gui(struct bootfs* fs)
 		if (g->events & BIT(EV_POK_LONG)) {
 			// mark current selection as default
 			int id = gui_menu_get_selection(m);
-			if (id == 101) {
+			if (id == BOOTSEL_POWEROFF) {
 				rtcsel.def = -1;
 				rtcsel.next = -1;
-				rtc_bootsel_set(&rtcsel);
-			} else if (id <= 32) {
+			} else {
 				rtcsel.def = id;
-				rtc_bootsel_set(&rtcsel);
 			}
+			rtc_bootsel_set(&rtcsel);
 
-			// refresh colors marking the default selection
-			for (int i = 0; i < m->n_items; i++) {
-				if (m->items[i].id <= 32) {
-					m->items[i].fg = rtcsel.def == m->items[i].id ? item_color_default : item_color_other;
-					m->changed = true;
-				}
-			}
+			gui_menu_set_active(m, rtcsel.def);
 		}
 
 		if (g->events & BIT(EV_POK_SHORT)) {
 			int id = gui_menu_get_selection(m);
-			if (id == 101) {
+
+			reboot_to(id);
+
+			if (id == BOOTSEL_POWEROFF) {
 				state = STATE_OFF;
-			} else if (id == 102) {
-				// reboot to FEL
-				writel(1, SUNXI_RTC_BASE + 0x104);
-				soc_reset();
-			} else if (id == 103) {
-				// reboot to eMMC
-				writel(2, SUNXI_RTC_BASE + 0x104);
-				soc_reset();
-			} else if (id <= 32) {
+			} else if (id < 64) {
 				state = STATE_BOOT;
 				boot_sel = id;
 			}
@@ -1242,7 +1312,6 @@ static void boot_gui(struct bootfs* fs)
 
 void main(void)
 {
-	struct mmc* mmc = NULL;
 	struct bootfs* fs = NULL;
 	int key;
 
@@ -1256,43 +1325,32 @@ void main(void)
 
 	printf("Boot Source: %s\n", get_boot_source_name());
 
+	/* read volume keys status */
 	udelay(12000);
 	key = lradc_get_pressed_key();
 
-	globals->mmc_no = 2;
-
-	// we always boot from eMMC, even when bootloader started from SD card
-	// having p-boot on SD card speeds up boot by 1s (BROM wait time for eMMC)
-	if (key != KEY_VOLUMEUP)
-		mmc = mmc_probe(2);
-	if (!mmc || !(fs = bootfs_open(mmc))) {
-		printf("BOOTFS not found on eMMC, trying SD card\n");
-		mmc = mmc_probe(0);
-
-		// read bootfs superblock and the config table
-		if (!mmc || !(fs = bootfs_open(mmc))) {
-			printf("BOOTFS not found on SD card\n");
-			panic(11, "Nothing to boot");
-			//goto boot_ui;
-		}
-
-		globals->mmc_no = 0;
-	}
-
-	key = lradc_get_pressed_key();
-
 #ifdef ENABLE_GUI
-	/* read volume keys status */
+	if (key == KEY_VOLUMEUP)
+		reboot_to(BOOTSEL_FEL);
+
+	// show UI if any of the volume keys was pressed
 	if (key == KEY_VOLUMEDOWN || key == KEY_VOLUMEUP || globals->vbus_powerup)
 		goto display_init;
 
-	struct bootfs_conf* sbc = bootfs_select_configuration(fs);
-	if (!sbc)
-		goto display_init;
+	int bootsel;
+	struct bootfs_conf* sbc = bootfs_select_configuration(&bootsel, &fs);
+	if (!sbc) {
+		// handle special boot options
+		reboot_to(bootsel);
 
+		goto display_init;
+	}
+
+	// try to load splashscreen, if successful, init display to show it
 	if (load_splash(fs, sbc, 0x48000000)) {
 		// show splash
 		display_init();
+
 		struct display* d = zalloc(sizeof *d);
 		d->planes[0].fb_start = 0x48000000;
 		d->planes[0].fb_pitch = 720 * 4;
@@ -1312,17 +1370,77 @@ void main(void)
 	}
 
 display_init:
+	// we always try to probe and load everything in display mode
 	display_init();
 boot_ui:
-	boot_gui(fs);
+	mmc_try_load(BIT(0) | BIT(2));
+	boot_gui();
 #else
-	int sel = 0;
-	if (key == KEY_VOLUMEDOWN) {
-		sel = 1;
-	} else if (key == KEY_VOLUMEUP)
-		sel = 2;
+	//
+	// Boot priority:
+	//
+	// - if KEY_VOLUMEUP (used to force booting from SD card if possible)
+	//   - option 0 from SD card
+	//   - panic
+	// - if KEY_VOLUMEDOWN (used to trigger alternate boot option)
+	//   - option 1 from eMMC
+	//   - option 1 from SD card
+	// - if KEY_NONE
+	//   - autoselect based on RTC data register (can select any boot option)
+	// - config 0 from eMMC
+	// - config 0 from SD card
+	//
+	struct bootfs_conf* sbc = NULL;
+	int bootsel = 0;
 
-	boot_selection(fs, &fs->confs_blocks[sel], 0);
+	if (key == KEY_VOLUMEUP) {
+		mmc_try_load(BIT(0));
+
+		fs = globals->sd;
+		sbc = fs ? &fs->confs_blocks[0] : NULL;
+		if (sbc && !memcmp(sbc->magic, ":BFCONF:", 8))
+			goto boot;
+
+		goto nothing_to_boot;
+	} else if (key == KEY_VOLUMEDOWN) {
+		bootsel = 1;
+	} else {
+		sbc = bootfs_select_configuration(&bootsel, &fs);
+		if (!sbc) {
+			reboot_to(bootsel);
+			bootsel = 0;
+		}
+	}
+
+	// not selected yet?
+try_conf0:
+	if (!sbc) {
+		mmc_try_load(BIT(2));
+
+		fs = globals->emmc;
+		sbc = fs ? &fs->confs_blocks[bootsel] : NULL;
+		if (sbc && !memcmp(sbc->magic, ":BFCONF:", 8))
+			goto boot;
+
+		mmc_try_load(BIT(0));
+
+		fs = globals->sd;
+		sbc = fs ? &fs->confs_blocks[bootsel] : NULL;
+		if (sbc && !memcmp(sbc->magic, ":BFCONF:", 8))
+			goto boot;
+
+		if (bootsel == 1) {
+			bootsel = 0;
+			goto try_conf0;
+		}
+
+		goto nothing_to_boot;
+	}
+
+boot:
+	boot_selection(fs, sbc, 0);
+nothing_to_boot:
+	panic(11, "Nothing to boot");
 #endif
 	panic(10, "Should not return\n");
 }

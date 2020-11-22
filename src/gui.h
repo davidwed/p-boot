@@ -37,6 +37,7 @@ struct gui {
 	// internal
 	uint64_t key_change_ts;
 	int last_key;
+	bool auto_repeat;
 
 	struct display* display;
 
@@ -61,12 +62,15 @@ struct gui_menu {
 	struct gui_widget widget;
 	struct gui_menu_item {
 		char text[128];
-		uint64_t fg;
+		uint32_t fg;
 		int id;
+
+		uint32_t active_fg;
+		int active;
 	} items[64];
 
 	char titles[4][128];
-	uint64_t titles_fg[4];
+	uint32_t titles_fg[4];
 
 	int n_items;
 	struct vidconsole con;
@@ -92,6 +96,7 @@ enum {
 void gui_menu_set_title(struct gui_menu* m, int pos, const char* text,
 			uint32_t fg, uint32_t bg);
 void gui_menu_add_item(struct gui_menu* m, int id, const char* text,
-		       uint32_t fg);
+		       uint32_t fg, uint32_t active_fg);
 int gui_menu_get_selection(struct gui_menu* m);
 void gui_menu_set_selection(struct gui_menu* m, int id);
+void gui_menu_set_active(struct gui_menu* m, int id);

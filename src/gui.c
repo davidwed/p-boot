@@ -91,16 +91,26 @@ void gui_get_events(struct gui* gui)
 	int key = lradc_get_pressed_key();
 	if (gui->last_key != key) {
 		gui->last_key = key;
-		gui->key_change_ts = timer_get_boot_us();
+		// de-bounce
+		gui->key_change_ts = timer_get_boot_us() + 30000;
+		gui->auto_repeat = false;
 	}
 
-	if (gui->key_change_ts && gui->key_change_ts + 50000 < now) {
-		gui->key_change_ts = 0;
+	if (gui->key_change_ts && gui->key_change_ts < now) {
+		// auto-repeat
+		if (gui->auto_repeat) {
+			gui->key_change_ts = now + 150000;
+		} else {
+			gui->auto_repeat = true;
+			gui->key_change_ts = now + 350000;
+		}
 
 		if (key == KEY_VOLUMEDOWN) {
 			gui->events |= BIT(EV_VOLUME_DOWN);
 		} else if (key == KEY_VOLUMEUP) {
 			gui->events |= BIT(EV_VOLUME_UP);
+		} else {
+			gui->key_change_ts = 0;
 		}
 	}
 
@@ -152,28 +162,39 @@ void gui_menu_update(struct gui_widget* w)
 	m->selection_changed = false;
 
 	if (m->n_items > 0) {
-		if (w->gui->events & BIT(EV_VOLUME_DOWN)) {
-			for (int i = m->selection + 1; i < m->n_items; i++) {
-				if (m->items[i].text[0]) {
-					m->selection = i;
-					m->changed = true;
-					m->selection_changed = true;
-					break;
-				}
-			}
-		}
+		int dir = 0, new_sel = m->selection;
+		if (w->gui->events & BIT(EV_VOLUME_DOWN))
+			dir = 1;
+		else if (w->gui->events & BIT(EV_VOLUME_UP))
+			dir = -1;
 
-		if (w->gui->events & BIT(EV_VOLUME_UP)) {
-			for (int i = m->selection - 1; i >= 0; i--) {
-				if (m->items[i].text[0]) {
-					m->selection = i;
-					m->changed = true;
-					m->selection_changed = true;
-					break;
-				}
-			}
+		// iterate through the list of items, until we get back to
+		// the original selection or we find an item that has text
+		do {
+			new_sel += dir;
+			if (new_sel >= m->n_items)
+				new_sel = 0;
+			else if (new_sel < 0)
+				new_sel = m->n_items - 1;
+		} while (new_sel != m->selection && m->items[new_sel].id < 0);
+
+		// select new item if it's not identical and has text
+		if (new_sel != m->selection && m->items[new_sel].id >= 0) {
+			m->selection = new_sel;
+			m->changed = true;
+			m->selection_changed = true;
 		}
 	}
+
+#define SLACK 2
+
+	uint32_t prev_scroll_top = m->scroll_top;
+	if (m->selection > m->scroll_top + m->scroll_height - SLACK - 1)
+		m->scroll_top = min(m->selection + SLACK + 1 - m->scroll_height, m->n_items - m->scroll_height);
+	else if (m->selection < m->scroll_top + SLACK)
+		m->scroll_top = max(0, m->selection - SLACK);
+	if (prev_scroll_top != m->scroll_top)
+		m->changed = true;
 
 	if (m->changed) {
 		int pad = 1;
@@ -219,7 +240,7 @@ void gui_menu_update(struct gui_widget* w)
 						line_text_len = strlen(it->text);
 						line_text = it->text;
 						line_sel = i == m->selection;
-						line_fg = it->fg;
+						line_fg = it->active ? it->active_fg : it->fg;
 					}
 				}
 			}
@@ -314,6 +335,7 @@ struct gui_menu* gui_menu(struct gui* g)
 	m->widget.gui = g;
 	m->widget.update = gui_menu_update;
 	m->changed = true;
+	m->scroll_height = h - 4;
 
 	g->widgets[g->n_widgets++] = &m->widget;
 
@@ -335,12 +357,13 @@ void gui_menu_set_title(struct gui_menu* m, int pos, const char* text,
 }
 
 void gui_menu_add_item(struct gui_menu* m, int id, const char* text,
-		       uint32_t fg)
+		       uint32_t fg, uint32_t active_fg)
 {
 	m->changed = true;
 
 	memcpy(m->items[m->n_items].text, text, strlen(text) + 1);
 	m->items[m->n_items].fg = fg;
+	m->items[m->n_items].active_fg = active_fg;
 	m->items[m->n_items++].id = id;
 }
 
@@ -358,4 +381,12 @@ void gui_menu_set_selection(struct gui_menu* m, int id)
 			break;
 		}
 	}
+}
+
+void gui_menu_set_active(struct gui_menu* m, int id)
+{
+	for (int i = 0; i < m->n_items; i++)
+		m->items[i].active = m->items[i].id == id;
+
+	m->changed = true;
 }
