@@ -1270,7 +1270,7 @@ void main(void)
 	pmic_setup_ocv_table();
 	pmic_read_status();
 
-	printf("Boot Source: %x\n", globals->boot_source);
+	printf("Boot Source: %s\n", get_boot_source_name());
 
 	udelay(12000);
 	key = lradc_get_pressed_key();
