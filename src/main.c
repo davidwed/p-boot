@@ -1191,7 +1191,7 @@ static void boot_gui(void)
 	gui_menu_set_title(m, POS_TOP_LEFT, title, COLOR_HEADER, 0x55000000);
 
 	struct strbuf* footer = strbuf_new(64);
-	strbuf_printf(footer, "p-boot %s, ", get_boot_source_name());
+	strbuf_printf(footer, "p-boot %s (%s), ", VERSION, get_boot_source_name());
 
 	uint32_t footer_color = (
 		globals->bat_present

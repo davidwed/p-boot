@@ -1,7 +1,7 @@
 #!/bin/sh
 
 echo "#pragma once" > "$1.tmp"
-echo "#define VERSION \"$(git describe --dirty --always)\"" >> "$1.tmp"
+echo "#define VERSION \"$(git describe --tags --abbrev=5 --always | tr - .)\"" >> "$1.tmp"
 echo "#define BUILD_DATE \"$(date +'%Y-%m-%d %H:%M')\"" >> "$1.tmp"
 echo "#define BUILD_YEAR $(date +%Y)" >> "$1.tmp"
 echo "#define BUILD_MONTH $(date +%_m)" >> "$1.tmp"
