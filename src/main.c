@@ -173,6 +173,21 @@ static void rtc_bootsel_set(struct bootsel* sel)
 	writel_relaxed(v, (ulong)SUNXI_RTC_BASE + 0x100);
 }
 
+static void rtc_set_flag(uint32_t flag, uint32_t val)
+{
+        uint32_t v = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x100);
+
+	v &= ~(flag << 16);
+	v |= val << 16;
+
+	writel_relaxed(v, (ulong)SUNXI_RTC_BASE + 0x100);
+}
+
+static bool rtc_get_flag(uint32_t flag)
+{
+        return readl_relaxed((ulong)SUNXI_RTC_BASE + 0x100) & (flag << 16);
+}
+
 // determine what bootfs option and filesystem to use based on RTC register
 static struct bootfs_conf* bootfs_select_configuration(int* opt,
 						       struct bootfs** fs_out)
@@ -1036,6 +1051,34 @@ void main_sram_only(void)
 	_dram_stack_top = (uintptr_t)((uint8_t*)dram_stack + 128 * 1024);
 }
 
+static void fdt_path_disable(void* fdt, const char* path)
+{
+        int node = fdt_path_offset(fdt, path);
+	if (node >= 0)
+		fdt_setprop(fdt, node, "status", "disabled", 9);
+}
+
+static const char* priv_nodes[] = {
+	// wifi
+	"/soc/mmc@1c10000",
+
+	// SoC <-> codec audio interface and the codec
+	"/sound",
+
+	// BT UART (UART1)
+	"/soc/serial@1c28400",
+
+	// Modem power driver
+	//"/soc/serial@1c28c00/modem",
+
+	// Sensors
+	"/soc/i2c@1c2b000",
+
+	// CSI and cameras
+	"/i2c-csi",
+	"/soc/csi@1cb0000",
+};
+
 static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t splash_fb)
 {
 	//
@@ -1063,6 +1106,16 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
         const char* model = fdt_getprop(fdt, 0, "model", NULL);
         if (model)
                 printf("DT model: %s\n", model);
+
+	if (rtc_get_flag(BIT(0))) {
+		for (int i = 0; i < ARRAY_SIZE(priv_nodes); i++)
+			fdt_path_disable(fdt, priv_nodes[i]);
+
+		// Modem power driver
+		int node = fdt_path_offset(fdt, "/soc/serial@1c28c00/modem");
+		if (node >= 0)
+			fdt_setprop_u32(fdt, node, "blocked", 1);
+	}
 
 	if (!boot_finalize(boot))
 		panic(13, "Failed to finalize boot\n");
@@ -1138,6 +1191,7 @@ static void boot_gui(void)
 	struct gui* g = zalloc(sizeof *g);
 	struct bootsel rtcsel;
 	struct bootfs* fs = globals->emmc ? globals->emmc : globals->sd;
+	struct gui_menu_item* priv;
 
 	wdog_disable();
 
@@ -1181,7 +1235,10 @@ static void boot_gui(void)
 		gui_menu_add_item(m, -2, "", 0, 0);
 	}
 
-	//gui_menu_add_item(m, 100, "Console ->", 0xff770011);
+	gui_menu_add_item(m, 100, "Privacy mode", 0xff777777, COLOR_DEFAULT_ITEM);
+	priv = &m->items[m->n_items - 1];
+	priv->active = rtc_get_flag(BIT(0));
+
 	gui_menu_add_item(m, BOOTSEL_FEL, "Reboot to FEL", COLOR_FEL_ITEM, COLOR_DEFAULT_ITEM);
 	gui_menu_add_item(m, BOOTSEL_POWEROFF, "Poweroff", COLOR_POWEROFF_ITEM, COLOR_POWEROFF_ITEM);
 
@@ -1294,14 +1351,20 @@ static void boot_gui(void)
 			if (id == BOOTSEL_POWEROFF) {
 				rtcsel.def = -1;
 				rtcsel.next = -1;
+			} else if (id == 100) {
+				priv->active = !priv->active;
+				m->changed = true;
+				rtc_set_flag(BIT(0), priv->active ? BIT(0) : 0);
+				goto spok;
 			} else {
 				rtcsel.def = id;
 			}
-			rtc_bootsel_set(&rtcsel);
 
+			rtc_bootsel_set(&rtcsel);
 			gui_menu_set_active(m, rtcsel.def);
 		}
 
+spok:
 		if (g->events & BIT(EV_POK_SHORT)) {
 			int id = gui_menu_get_selection(m);
 
