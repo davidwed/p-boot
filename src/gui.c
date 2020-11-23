@@ -392,11 +392,3 @@ void gui_menu_set_selection(struct gui_menu* m, int id)
 		}
 	}
 }
-
-void gui_menu_set_active(struct gui_menu* m, int id)
-{
-	for (int i = 0; i < m->n_items; i++)
-		m->items[i].active = m->items[i].id == id;
-
-	m->changed = true;
-}

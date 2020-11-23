@@ -99,4 +99,3 @@ void gui_menu_add_item(struct gui_menu* m, int id, const char* text,
 		       uint32_t fg, uint32_t active_fg);
 int gui_menu_get_selection(struct gui_menu* m);
 void gui_menu_set_selection(struct gui_menu* m, int id);
-void gui_menu_set_active(struct gui_menu* m, int id);

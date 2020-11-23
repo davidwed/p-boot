@@ -1123,6 +1123,15 @@ static const char* get_boot_source_name(void)
 #define COLOR_FOOTER 0xffddee77
 #define COLOR_FOOTER_BAD 0xffff1122
 
+static void gui_menu_set_active(struct gui_menu* m, int id)
+{
+	for (int i = 0; i < m->n_items; i++)
+		if (m->items[i].id < 67)
+			m->items[i].active = m->items[i].id == id;
+
+	m->changed = true;
+}
+
 static void boot_gui(void)
 {
 	struct display* d = zalloc(sizeof *d);
