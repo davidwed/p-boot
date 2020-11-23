@@ -157,7 +157,7 @@ struct bootsel {
 
 static void rtc_bootsel_get(struct bootsel* sel)
 {
-        uint32_t v = readl((ulong)SUNXI_RTC_BASE + 0x100);
+        uint32_t v = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x100);
 
 	sel->next = (int)((v >> 8) & 0xff) - 1;
 	sel->def = (int)(v & 0xff) - 1;
@@ -170,7 +170,7 @@ static void rtc_bootsel_set(struct bootsel* sel)
 	v |= ((sel->next + 1) & 0xff) << 8;
 	v |= ((sel->def + 1) & 0xff);
 
-	writel(v, (ulong)SUNXI_RTC_BASE + 0x100);
+	writel_relaxed(v, (ulong)SUNXI_RTC_BASE + 0x100);
 }
 
 // determine what bootfs option and filesystem to use based on RTC register
@@ -261,7 +261,7 @@ static void get_soc_id(uint32_t sid[4])
 {
 	int i;
 	for (i = 0; i < 4; i++)
-		sid[i] = readl((ulong)SUNXI_SID_BASE + 4 * i);
+		sid[i] = readl_relaxed((ulong)SUNXI_SID_BASE + 4 * i);
 }
 
 static bool get_mac_address(unsigned no, uint8_t mac_addr[6])
@@ -303,8 +303,8 @@ static uint32_t get_boot_source(void)
 static void rtc_fixup(void)
 {
         // check if RTC runs at lower value than build date, move to build date
-        uint32_t ymd = readl((ulong)SUNXI_RTC_BASE + 0x10);
-        uint32_t hms = readl((ulong)SUNXI_RTC_BASE + 0x14);
+        uint32_t ymd = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x10);
+        uint32_t hms = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x14);
         uint32_t rtc_year = 1970 + ((ymd >> 16) & 0x3f);
         if (rtc_year < BUILD_YEAR) {
                 printf("RTC: %08x %08x (<BUILD_DATE)\n", ymd, hms);
@@ -1074,11 +1074,11 @@ static void reboot_to(int bootsel)
 {
 	if (bootsel == BOOTSEL_FEL) {
 		// reboot to FEL
-		writel(1, SUNXI_RTC_BASE + 0x104);
+		writel_relaxed(1, SUNXI_RTC_BASE + 0x104);
 		soc_reset();
 	} else if (bootsel == BOOTSEL_EMMC) {
 		// reboot to eMMC
-		writel(2, SUNXI_RTC_BASE + 0x104);
+		writel_relaxed(2, SUNXI_RTC_BASE + 0x104);
 		soc_reset();
 	}
 }
