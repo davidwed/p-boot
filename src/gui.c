@@ -320,6 +320,7 @@ void gui_menu_update(struct gui_widget* w)
 		d->planes[1].dst_y = (1440 - c->fb_height - d->planes[1].dst_x);
 		d->planes[1].alpha = 0;
 
+#if 0
 		if (m->anim_ticks < dur) {
 			double pct = 1.0 - xsin((double)m->anim_ticks / dur);
 
@@ -333,6 +334,7 @@ void gui_menu_update(struct gui_widget* w)
 
 			m->anim_ticks++;
 		}
+#endif
 	}
 }
 
