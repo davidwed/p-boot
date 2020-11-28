@@ -74,6 +74,10 @@ Building
    named p-boot*.bin. See "Variants" section bellow for description
    of each variant.
 
+You may have trouble building p-boot with some toolchains. p-boot is a bit
+space constrained and some toolchains don't build it small enough. Known
+working toolchains are aarch64 toolchain (gcc 10.2) from community repo
+of Arch Linux, and aarch64 toolchain in the latest Ubuntu release.
 
 Building (without PHP)
 ----------------------
