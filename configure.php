@@ -529,6 +529,7 @@ $ldflags = [
 	'-static',
 	'-Wl,--gc-sections',
 	'-Wl,--fix-cortex-a53-843419',
+	'-Wl,--build-id=none',
 	'-nostdlib',
 	'-lgcc',
 	'-flto',
