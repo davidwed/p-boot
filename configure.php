@@ -631,7 +631,7 @@ p_boot([
 		 '-DENABLE_GUI',
 		 '-DRETURN_TO_DRAM_MAIN',
 		 '-DDRAM_STACK_SWITCH',
-		 '-DDE2_RESIZE=1',
+//		 '-DDE2_RESIZE=1',
 	],
 	'ldflags' => ['$pboot_ldflags'],
 ]);
