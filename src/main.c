@@ -569,6 +569,12 @@ static void fdt_fixup_bt(void* fdt)
 static void fdt_add_pboot_data(void* fdt_blob, struct bootfs* fs)
 {
 	struct bootfs_conf* bc = fs->confs_blocks;
+
+        int pboot_off = fdt_find_or_add_subnode(fdt_blob, 0, "p-boot");
+        if (pboot_off < 0)
+		return;
+
+#ifdef PBOOT_FDT_CONFIGS
 	char* configs = malloc(32 * 256);
 	char* p = configs;
 
@@ -594,12 +600,9 @@ static void fdt_add_pboot_data(void* fdt_blob, struct bootfs* fs)
 		}
 	}
 
-        int pboot_off = fdt_find_or_add_subnode(fdt_blob, 0, "p-boot");
-        if (pboot_off < 0)
-		return;
-
 	fdt_setprop(fdt_blob, pboot_off, "configs",
 		    configs, p - configs);
+#endif
 
 #ifdef PBOOT_FDT_LOG
 	fdt_setprop(fdt_blob, pboot_off, "log",
