@@ -291,7 +291,8 @@ void pmic_init(void)
 	//pmic_setbits(0x84, BIT(2));
 
 	// when SDP not detected set 2A VBUS current limit (my charger can do that)
-	pmic_write(0x30, 0x02);
+	// set VBUS Vhold to 4.5V
+	pmic_write(0x30, 0x02 | (5 << 3));
 
 	// enable charger detection
 	pmic_write(0x2c, 0x95);
