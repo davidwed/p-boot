@@ -19,9 +19,6 @@ ldflags_bconf_native =
 cflags_bconf = 
 cxxflags_bconf = 
 ldflags_bconf = -static -s
-cflags_bsel = 
-cxxflags_bsel = 
-ldflags_bsel = -static -s
 cflags_start32 = -Os -march=armv7-a+neon-vfpv4 -ffreestanding -mthumb
 cxxflags_start32 = 
 ldflags_start32 = -static -nostdlib -T$srcdir/start32.ld -Wl,--gc-sections
@@ -204,14 +201,6 @@ build $builddir/p-boot-conf: link $builddir/p-boot-conf.objs/conf.o
   ldflags = $ldflags_bconf
   libs = 
   cflags = $cflags_bconf
-
-build $builddir/p-boot-select.objs/bootsel.o: cc $srcdir/bootsel.c
-  cflags = $cflags_bsel
-
-build $builddir/p-boot-select: link $builddir/p-boot-select.objs/bootsel.o
-  ldflags = $ldflags_bsel
-  libs = 
-  cflags = $cflags_bsel
 
 build $builddir/p-boot-start32.objs/start32.o: cc_arm32 $srcdir/start32.S
   cflags = $cflags_start32 -D__ASSEMBLY__
@@ -750,6 +739,6 @@ build $builddir/build-ver.h: mkver always
 
 build always: phony 
 
-build all: phony $builddir/p-boot-conf-native $builddir/p-boot-conf $builddir/p-boot-select $builddir/p-boot.bin $builddir/p-boot/bin.as $builddir/p-boot/bin.size $builddir/p-boot-serial.bin $builddir/p-boot-serial/bin.as $builddir/p-boot-serial/bin.size $builddir/p-boot-tiny.bin $builddir/p-boot-tiny/bin.as $builddir/p-boot-tiny/bin.size $builddir/p-boot-dtest.bin $builddir/p-boot-dtest/bin.as $builddir/p-boot-dtest/bin.size
+build all: phony $builddir/p-boot-conf-native $builddir/p-boot-conf $builddir/p-boot.bin $builddir/p-boot/bin.as $builddir/p-boot/bin.size $builddir/p-boot-serial.bin $builddir/p-boot-serial/bin.as $builddir/p-boot-serial/bin.size $builddir/p-boot-tiny.bin $builddir/p-boot-tiny/bin.as $builddir/p-boot-tiny/bin.size $builddir/p-boot-dtest.bin $builddir/p-boot-dtest/bin.as $builddir/p-boot-dtest/bin.size
 
 default all
