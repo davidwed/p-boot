@@ -15,14 +15,17 @@ extern void jump_to(unsigned int addr);
  */
 void main(void)
 {
+	unsigned target = 0;
 	unsigned mode;
-	
-	mode = readl(SUNXI_RTC_BASE + 0x104);
-	asm volatile ("dmb sy" : : : "memory");
-        writel(0, SUNXI_RTC_BASE + 0x104);
 
-	if (mode == 1)
-		jump_to(0x20);
-	else if (mode == 2)
-		jump_to(0x2f54);
+	mode = readl(SUNXI_RTC_BASE + 0x104);
+	if (mode == 0xb0010fe1)
+		target = 0x20;
+	else if (mode == 0xb001e33c)
+		target = 0x2f54;
+
+	if (target) {
+		writel(0, SUNXI_RTC_BASE + 0x104);
+		jump_to(target);
+	}
 }

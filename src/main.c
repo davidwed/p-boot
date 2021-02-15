@@ -148,26 +148,24 @@ enum {
 	BOOTSEL_POWEROFF = 64,
 	BOOTSEL_EMMC,
 	BOOTSEL_FEL,
+	BOOTSEL_LAST = BOOTSEL_FEL,
 };
 
 struct bootsel {
 	int def; // -1 = undefined
-	int next; // -1 = undefined
 };
 
 static void rtc_bootsel_get(struct bootsel* sel)
 {
-        uint32_t v = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x100);
+        uint32_t vp = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x100); // persistent options
 
-	sel->next = (int)((v >> 8) & 0xff) - 1;
-	sel->def = (int)(v & 0xff) - 1;
+	sel->def = (int)(vp & 0xff) - 1;
 }
 
 static void rtc_bootsel_set(struct bootsel* sel)
 {
 	uint32_t v = 0;
 
-	v |= ((sel->next + 1) & 0xff) << 8;
 	v |= ((sel->def + 1) & 0xff);
 
 	writel_relaxed(v, (ulong)SUNXI_RTC_BASE + 0x100);
@@ -197,13 +195,13 @@ static struct bootfs_conf* bootfs_select_configuration(int* opt,
 	struct bootfs_conf* sel = NULL;
 	struct bootsel rtcsel;
 	int bootsel;
+	uint32_t vt = readl_relaxed((ulong)SUNXI_RTC_BASE + 0x104); // options cleared on each boot
 
 	/* override boot configuration based on RTC data register */
 	rtc_bootsel_get(&rtcsel);
-	if (rtcsel.next >= 0) {
-		rtcsel.next = -1;
-		bootsel = rtcsel.next;
-		rtc_bootsel_set(&rtcsel);
+	if ((vt & 0xffff0000u) == 0xb0010000u) {
+		writel_relaxed(0, (ulong)SUNXI_RTC_BASE + 0x104);
+		bootsel = vt & 0xffff;
 	} else if (rtcsel.def >= 0) {
 		bootsel = rtcsel.def;
 	} else {
@@ -1130,11 +1128,11 @@ static void reboot_to(int bootsel)
 {
 	if (bootsel == BOOTSEL_FEL) {
 		// reboot to FEL
-		writel_relaxed(1, SUNXI_RTC_BASE + 0x104);
+		writel_relaxed(0xb0010fe1, SUNXI_RTC_BASE + 0x104);
 		soc_reset();
 	} else if (bootsel == BOOTSEL_EMMC) {
 		// reboot to eMMC
-		writel_relaxed(2, SUNXI_RTC_BASE + 0x104);
+		writel_relaxed(0xb001e33c, SUNXI_RTC_BASE + 0x104);
 		soc_reset();
 	}
 }
@@ -1353,7 +1351,6 @@ static void boot_gui(void)
 			int id = gui_menu_get_selection(m);
 			if (id == BOOTSEL_POWEROFF) {
 				rtcsel.def = -1;
-				rtcsel.next = -1;
 			} else if (id == 100) {
 				priv->active = !priv->active;
 				m->changed = true;
