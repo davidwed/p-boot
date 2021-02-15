@@ -401,14 +401,6 @@ $all_deps[] = add_cc_link_build([
 	'ldflags' => '-static -s',
 ]);
 
-$all_deps[] = add_cc_link_build([
-	'name' => 'bsel',
-	'output' => '$builddir/p-boot-select',
-	'sources' => ['$srcdir/bootsel.c'],
-	'cflags' => '',
-	'ldflags' => '-static -s',
-]);
-
 // p-boot 32bit preamble
 
 $start32_elf = add_cc_link_build([
