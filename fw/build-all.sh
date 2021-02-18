@@ -16,4 +16,6 @@ dd if=scp.bin of=fw.bin bs=1k seek=48
 cp bl31-debug.bin fw-debug.bin
 dd if=scp.bin of=fw-debug.bin bs=1k seek=48
 
+chmod -x *.bin
+
 #scp scp.bin root@pp-usb:~/

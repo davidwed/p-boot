@@ -1,0 +1,25 @@
+From 6c8f59d40767a55b6211f33a0e81320aee37ade6 Mon Sep 17 00:00:00 2001
+From: Ondrej Jirman <megous@megous.com>
+Date: Thu, 18 Feb 2021 06:40:57 +0100
+Subject: [PATCH] Fix resume failure
+
+---
+ common/system.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/common/system.c b/common/system.c
+index cf2ebbc..c3516c0 100644
+--- a/common/system.c
++++ b/common/system.c
+@@ -248,7 +248,7 @@ system_state_machine(uint32_t exception)
+ 			device_put(pmic);
+ 
+ 			/* Give regulator outputs time to rise. */
+-			udelay(5000);
++			udelay(50000);
+ 
+ 			/* Restore SoC-internal power domains. */
+ 			r_ccu_resume();
+-- 
+2.30.1
+
