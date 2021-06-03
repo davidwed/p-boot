@@ -1069,9 +1069,6 @@ static const char* priv_nodes[] = {
 	// BT UART (UART1)
 	"/soc/serial@1c28400",
 
-	// Modem power driver
-	//"/soc/serial@1c28c00/modem",
-
 	// Sensors
 	"/soc/i2c@1c2b000",
 
@@ -1116,6 +1113,17 @@ static void boot_selection(struct bootfs* fs, struct bootfs_conf* sbc, uint32_t 
 		int node = fdt_path_offset(fdt, "/soc/serial@1c28c00/modem");
 		if (node >= 0)
 			fdt_setprop_u32(fdt, node, "blocked", 1);
+	} else {
+		// Disable modem power driver for eg25-manager using distros
+		if (strstr(boot->bootargs, "eg25-manager")) {
+		        int node = fdt_path_offset(fdt, "/soc/serial@1c28c00/modem");
+			if (node >= 0)
+				fdt_del_node(fdt, node);
+
+		        node = fdt_path_offset(fdt, "/vbat-bb");
+			if (node >= 0)
+				fdt_setprop(fdt, node, "regulator-always-on", NULL, 0);
+		}
 	}
 
 	if (!boot_finalize(boot))

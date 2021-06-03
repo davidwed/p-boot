@@ -52,7 +52,6 @@ int memcmp(const void *vl, const void *vr, size_t n)
         return n ? *l-*r : 0;
 }
 
-
 void *memmove(void *dest, const void *src, size_t n)
 {
         char *d = dest;
@@ -89,4 +88,18 @@ int strcmp(const char *l, const char *r)
 {
         for (; *l==*r && *l; l++, r++);
         return *(unsigned char *)l - *(unsigned char *)r;
+}
+
+// this is all kinds of wrong, but we just want to compare small strings
+// and want small footprint
+char* strstr(const char *hay, const char *needle)
+{
+        int hay_l = strlen(hay);
+        int needle_l = strlen(needle);
+        
+	for (int i = 0; i <= hay_l - needle_l; i++)
+		if (!memcmp(hay + i, needle, needle_l))
+			return (char*)(hay + i);
+
+	return NULL;
 }
